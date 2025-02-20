@@ -1,8 +1,9 @@
 import numpy as np
+import os
 from sklearn.datasets import make_blobs
 import matplotlib.pyplot as plt
 from mip_clustering import MIPClustering
-from visualization import plot_mip_clusters, kmeans_dir, minimax_dir
+from visualization import plot_mip_clusters, kmeans_dir, minimax_dir, BASE_DIR
 
 # -------------------------------
 # Generazione dei dati sintetici
@@ -18,7 +19,9 @@ plt.scatter(X[:, 0], X[:, 1], s=10)
 plt.title('Dati Originali')
 plt.xlabel('Feature 1')
 plt.ylabel('Feature 2')
-plt.savefig('imgs/original_data.png', dpi=300)
+original_img_path = os.path.join(BASE_DIR, "imgs", "original_data.png")
+plt.savefig(original_img_path, dpi=300)
+print(f"Immagine salvata in: {original_img_path}")
 plt.show()
 
 # ----------------------------------------------
@@ -44,7 +47,8 @@ for K in [2, 3, 4]:
     # Estrazione dei cluster ottenuti dalla soluzione.
     clusters = model.get_clusters()
     print(f"K-Means - Cluster trovati: {len(clusters)}")
-    plot_mip_clusters(X, clusters, f'kmeans_clusters_K{K}.png', output_dir=kmeans_dir)
+    # Salvataggio dell'immagine con il plot dei cluster ottenuti dal modello K-Means MIP
+    plot_mip_clusters(X, clusters, filename=f'kmeans_clusters_K{K}.png', output_dir=kmeans_dir)
     
     # ----------------------------------------
     # Modello Minimax MIP
@@ -57,4 +61,5 @@ for K in [2, 3, 4]:
     # Estrazione e visualizzazione dei cluster ottenuti con l'approccio Minimax.
     clusters = model.get_clusters()
     print(f"Minimax - Cluster trovati: {len(clusters)}")
-    plot_mip_clusters(X, clusters, f'minimax_clusters_K{K}.png', output_dir=minimax_dir)
+    # Salvataggio dell'immagine con il plot dei cluster ottenuti dal modello Minimax MIP
+    plot_mip_clusters(X, clusters, filename=f'minimax_clusters_K{K}.png', output_dir=minimax_dir)

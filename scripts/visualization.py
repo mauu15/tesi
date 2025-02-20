@@ -1,21 +1,23 @@
 import os
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 
-# Gestione cartelle
-output_dir = "imgs"
+# Definizione della cartella base del progetto.
+# Poiché questo file si trova in "tesi/scripts", il BASE_DIR sarà "tesi"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Gestione cartelle: le immagini saranno salvate in BASE_DIR/imgs
+output_dir = os.path.join(BASE_DIR, "imgs")
 kmeans_dir = os.path.join(output_dir, "kmeans")
 minimax_dir = os.path.join(output_dir, "minimax")
 
 # Crea le cartelle se non esistono
 for folder in [output_dir, kmeans_dir, minimax_dir]:
-    if not os.path.exists(folder):
-        os.makedirs(folder)
+    os.makedirs(folder, exist_ok=True)
 
-def plot_clusters(X, k_values=[2, 3], labels_list=None, filename="kmeans_clusters.png", output_dir=kmeans_dir):
+def plot_clusters(X, k_values=[2, 3], labels_list=None):
     """
     Visualizza i dati clusterizzati in 2D utilizzando PCA per la riduzione dimensionale.
     
@@ -23,7 +25,6 @@ def plot_clusters(X, k_values=[2, 3], labels_list=None, filename="kmeans_cluster
     - X: array di dati (ogni riga è un punto e ogni colonna una feature).
     - k_values: lista dei valori di K (numero di cluster) per i quali eseguire il clustering KMeans.
     - labels_list: (opzionale) lista di etichette di cluster già calcolate per ogni valore di K.
-    - filename: nome del file per salvare l'immagine.
     
     Se labels_list non viene fornito, la funzione esegue il clustering KMeans per ogni K.
     """
@@ -56,19 +57,25 @@ def plot_clusters(X, k_values=[2, 3], labels_list=None, filename="kmeans_cluster
 
     plt.tight_layout()
     # Salvataggio della figura in formato PNG ad alta risoluzione (300 dpi)
-    plt.savefig(os.path.join(output_dir, filename), dpi=300)
+    save_path = os.path.join(kmeans_dir, "kmeans_clusters.png")
+    plt.savefig(save_path, dpi=300)
+    print(f"Immagine salvata in: {save_path}")
+    plt.show()
 
-def plot_mip_clusters(X, clusters, filename="mip_clusters.png", output_dir=minimax_dir):
+def plot_mip_clusters(X, clusters, filename="minimax_clusters.png", output_dir=minimax_dir):
     """
     Visualizza i dati clusterizzati in 2D utilizzando PCA per la riduzione dimensionale.
     
     Parametri:
     - X: array di dati (ogni riga è un punto e ogni colonna una feature).
     - clusters: dizionario che mappa l'ID del cluster ad una lista di indici dei punti appartenenti.
-    - filename: nome del file per salvare l'immagine.
+    - filename: nome del file in cui salvare il plot (default "minimax_clusters.png").
+    - output_dir: directory in cui salvare il file (default la cartella minimax definita sopra).
     
     La funzione crea una visualizzazione in cui ogni punto è colorato in base al cluster di appartenenza.
     """
+    filepath = os.path.join(output_dir, filename)
+
     if X is None or len(X) == 0:
         print("Dati non validi per la visualizzazione.")
         return
@@ -88,13 +95,11 @@ def plot_mip_clusters(X, clusters, filename="mip_clusters.png", output_dir=minim
     plt.title("MIP Clustering")
     plt.xlabel("PCA Component 1")
     plt.ylabel("PCA Component 2")
-    plt.savefig(os.path.join(minimax_dir, filename), dpi=300)
-
-    # Verifica se la directory esiste e creala se necessario
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    plt.savefig(os.path.join(output_dir, filename), dpi=300)
+    
+    # Salvataggio della figura in formato PNG ad alta risoluzione (300 dpi)
+    plt.savefig(filepath, dpi=300)
+    print(f"Immagine salvata in: {filepath}")
+    plt.show()
 
 # -------------------------------
 # Esempio di utilizzo delle funzioni
