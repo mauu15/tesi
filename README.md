@@ -79,9 +79,3 @@ L'obiettivo è implementare due modelli di clustering basati su programmazione M
 
 - **Aggiornamenti e ottimizzazioni:**  
   Continuare a migliorare il codice, aggiungendo commenti e ottimizzando i parametri di Gurobi se necessario.
-
----
-
-Questo file verrà aggiornato man mano che il progetto procede.  
-Sentiti libero di modificarlo e ampliarlo per tenere traccia di tutte le modifiche e i progressi.
-
