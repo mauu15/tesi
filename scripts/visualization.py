@@ -6,7 +6,6 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 
 # Gestione cartelle
-
 output_dir = "imgs"
 kmeans_dir = os.path.join(output_dir, "kmeans")
 minimax_dir = os.path.join(output_dir, "minimax")
@@ -16,7 +15,7 @@ for folder in [output_dir, kmeans_dir, minimax_dir]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-def plot_clusters(X, k_values=[2, 3], labels_list=None):
+def plot_clusters(X, k_values=[2, 3], labels_list=None, filename="kmeans_clusters.png", output_dir=kmeans_dir):
     """
     Visualizza i dati clusterizzati in 2D utilizzando PCA per la riduzione dimensionale.
     
@@ -24,6 +23,7 @@ def plot_clusters(X, k_values=[2, 3], labels_list=None):
     - X: array di dati (ogni riga è un punto e ogni colonna una feature).
     - k_values: lista dei valori di K (numero di cluster) per i quali eseguire il clustering KMeans.
     - labels_list: (opzionale) lista di etichette di cluster già calcolate per ogni valore di K.
+    - filename: nome del file per salvare l'immagine.
     
     Se labels_list non viene fornito, la funzione esegue il clustering KMeans per ogni K.
     """
@@ -56,16 +56,16 @@ def plot_clusters(X, k_values=[2, 3], labels_list=None):
 
     plt.tight_layout()
     # Salvataggio della figura in formato PNG ad alta risoluzione (300 dpi)
-    plt.savefig(os.path.join(kmeans_dir, "kmeans_clusters.png"), dpi=300)
-    plt.show()
+    plt.savefig(os.path.join(output_dir, filename), dpi=300)
 
-def plot_mip_clusters(X, clusters):
+def plot_mip_clusters(X, clusters, filename="mip_clusters.png", output_dir=minimax_dir):
     """
     Visualizza i dati clusterizzati in 2D utilizzando PCA per la riduzione dimensionale.
     
     Parametri:
     - X: array di dati (ogni riga è un punto e ogni colonna una feature).
     - clusters: dizionario che mappa l'ID del cluster ad una lista di indici dei punti appartenenti.
+    - filename: nome del file per salvare l'immagine.
     
     La funzione crea una visualizzazione in cui ogni punto è colorato in base al cluster di appartenenza.
     """
@@ -88,8 +88,13 @@ def plot_mip_clusters(X, clusters):
     plt.title("MIP Clustering")
     plt.xlabel("PCA Component 1")
     plt.ylabel("PCA Component 2")
-    plt.savefig(os.path.join(minimax_dir, "minimax_clusters.png"), dpi=300)
-    plt.show()
+    plt.savefig(os.path.join(minimax_dir, filename), dpi=300)
+
+    # Verifica se la directory esiste e creala se necessario
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    plt.savefig(os.path.join(output_dir, filename), dpi=300)
 
 # -------------------------------
 # Esempio di utilizzo delle funzioni
