@@ -100,6 +100,55 @@ class MIPClustering:
         # Funzione obiettivo: Minimizzare la somma dei diametri dei cluster, diviso il numero di cluster.
         obj = gp.quicksum(d[k] for k in range(self.K)) / self.K
         self.model.setObjective(obj, GRB.MINIMIZE)
+
+
+    # Aggiunta di un metodo per creare il modello MIP per K-Means pesato
+    def create_weighted_kmeans_model(self, weights):
+        """
+        Crea il modello MIP per K-Means pesato, utilizzando i pesi per ponderare le distanze.
+        
+        In questa formulazione, la distanza d[i,k] per il punto i e il cluster k è definita come:
+           d[i,k] = w_i * sum_j (tau[i][j] * w_j * y[j,k])
+        dove:
+          - w_i sono i pesi forniti per ogni punto.
+          - tau[i][j] è la distanza tra i punti i e j.
+          - y[j,k] è la variabile binaria che indica se il punto j è il centroide del cluster k.
+        """
+        self.model = gp.Model("WeightedKMeansMIP")
+        
+        # Variabili: x indica l'assegnazione, y indica il centroide
+        self.x = self.model.addVars(self.N, self.K, vtype=GRB.BINARY, name="x")
+        self.y = self.model.addVars(self.N, self.K, vtype=GRB.BINARY, name="y")
+        
+        # Variabili per le distanze pesate
+        d = self.model.addVars(self.N, self.K, vtype=GRB.CONTINUOUS, name="d")
+        
+        # Vincolo: ogni punto deve essere assegnato ad un solo cluster
+        for i in range(self.N):
+            self.model.addConstr(gp.quicksum(self.x[i, k] for k in range(self.K)) == 1, f"assign_{i}")
+        
+        # Vincolo: ogni cluster deve avere esattamente un centroide
+        for k in range(self.K):
+            self.model.addConstr(gp.quicksum(self.y[j, k] for j in range(self.N)) == 1, f"centroid_{k}")
+        
+        # Vincolo: un punto può essere centroide solo se è assegnato al cluster
+        for j in range(self.N):
+            for k in range(self.K):
+                self.model.addConstr(self.y[j, k] <= self.x[j, k], f"centroid_assign_{j}_{k}")
+        
+        # Vincolo: definizione della distanza pesata
+        for i in range(self.N):
+            for k in range(self.K):
+                # d[i,k] = weights[i] * sum_j (tau[i][j] * weights[j] * y[j,k])
+                self.model.addConstr(
+                    d[i, k] == weights[i] * gp.quicksum(self.tau[i][j] * weights[j] * self.y[j, k] for j in range(self.N)),
+                    f"dist_weighted_{i}_{k}"
+                )
+        
+        # Funzione obiettivo: minimizzare la media delle distanze pesate
+        obj = gp.quicksum(d[i, k] for i in range(self.N) for k in range(self.K)) / self.K
+        self.model.setObjective(obj, GRB.MINIMIZE)
+
     
     def solve(self, time_limit=300):
         """
