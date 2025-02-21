@@ -115,12 +115,5 @@ In questo progetto il modello non è solo un esercizio teorico, ma viene usato p
   La variante del K-Means pesato introduce dei pesi \(w_i\) e \(w_j\):  
   - **\(w_i\)** è il peso associato al paziente \(i\) e può rappresentare, ad esempio, la priorità del paziente, la frequenza con cui deve essere visitato o il tempo medio necessario per fornirgli assistenza.  
   - **\(w_j\)** è il peso del paziente \(j\) quando viene considerato come centroide.  
-  In questo modo, la distanza ponderata diventa:
   
-  $$
-  d[i,k] = w_i \times \sum_j \Bigl( \tau[i][j] \times w_j \times y[j,k] \Bigr)
-  $$
-
-  Con l'introduzione dei pesi, il modello non minimizza solo i tempi di percorrenza, ma dà anche "priorità" a quei pazienti che, per esempio, richiedono assistenza più frequente o più impegnativa. Questo aiuta a creare cluster che rispecchino meglio le esigenze reali del servizio territoriale.
-
-Insomma, il progetto traduce in termini matematici le sfide quotidiane degli infermieri: raggruppare i pazienti in modo che gli spostamenti siano minimizzati e, grazie ai pesi, dare maggiore attenzione a chi ne ha davvero bisogno.
+  Con l'introduzione dei pesi, il modello non minimizza solo i tempi di percorrenza, ma dà anche "priorità" ai pazienti che richiedono assistenza più frequente o più impegnativa. Questo aiuta a creare cluster che rispecchino meglio le esigenze reali del servizio territoriale.
