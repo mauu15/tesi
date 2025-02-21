@@ -90,3 +90,37 @@ weights = np.random.uniform(0.5, 1.0, size=X.shape[0])
 ```
 
 e poi uso il nuovo metodo `create_weighted_kmeans_model(weights)` (definito in `mip_clustering.py`) per testare questa versione pesata. Così possiamo confrontare i risultati del modello base con quelli del modello pesato e vedere se l'introduzione dei pesi offre qualche vantaggio o una diversa struttura dei cluster.
+
+
+Ecco la sezione aggiuntiva da integrare nel README:
+
+---
+
+## Applicazione Reale
+
+In questo progetto il modello non è solo un esercizio teorico, ma viene usato per affrontare una situazione reale: l'ottimizzazione degli spostamenti degli infermieri territoriali.
+
+- **Nodi e Distanze:**  
+  Ogni nodo corrisponde a un paziente. La distanza tau₍ᵢⱼ₎tra due pazienti \(i\) e \(j\) non rappresenta solo la distanza geografica, ma include anche il tempo di percorrenza (espresso in minuti, sempre >1). 
+
+  Questo significa che il "costo" di spostarsi da un paziente all'altro è più realistico, perché tiene conto sia della distanza che del tempo necessario per raggiungerli.
+
+- **Cluster come Gruppi di Pazienti:**  
+  L'idea è di raggruppare i pazienti in cluster, così che ogni infermiere possa occuparsi di un gruppo di pazienti che sono vicini tra loro, riducendo così i tempi di spostamento.  
+  - Nel modello **K-Means MIP**, si minimizza la somma delle distanze (cioè i tempi di percorrenza) dai pazienti al centroide del cluster, che rappresenta il punto centrale di quel gruppo.
+  Quest ultimo viene scelto in base al fatto che, tra tutti i punti assegnati a quel cluster, la sua selezione minimizza complessivamente la somma delle distanze tra il centro e gli altri punti del cluster.  
+  - Nel modello **Minimax MIP**, invece, l'obiettivo è ridurre il percorso massimo all'interno di ogni cluster, cercando di evitare che un infermiere debba percorrere distanze eccessive per raggiungere un paziente.
+
+- **Il Ruolo dei Pesi nel Modello Pesato:**  
+  La variante del K-Means pesato introduce dei pesi \(w_i\) e \(w_j\):  
+  - **\(w_i\)** è il peso associato al paziente \(i\) e può rappresentare, ad esempio, la priorità del paziente, la frequenza con cui deve essere visitato o il tempo medio necessario per fornirgli assistenza.  
+  - **\(w_j\)** è il peso del paziente \(j\) quando viene considerato come centroide.  
+  In questo modo, la distanza ponderata diventa:
+  
+  $$
+  d[i,k] = w_i \times \sum_j \Bigl( \tau[i][j] \times w_j \times y[j,k] \Bigr)
+  $$
+
+  Con l'introduzione dei pesi, il modello non minimizza solo i tempi di percorrenza, ma dà anche "priorità" a quei pazienti che, per esempio, richiedono assistenza più frequente o più impegnativa. Questo aiuta a creare cluster che rispecchino meglio le esigenze reali del servizio territoriale.
+
+Insomma, il progetto traduce in termini matematici le sfide quotidiane degli infermieri: raggruppare i pazienti in modo che gli spostamenti siano minimizzati e, grazie ai pesi, dare maggiore attenzione a chi ne ha davvero bisogno.
