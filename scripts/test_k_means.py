@@ -10,9 +10,15 @@ from visualization import plot_mip_clusters, kmeans_dir, minimax_dir, BASE_DIR
 # -------------------------------
 # Utilizziamo make_blobs per creare un dataset di 100 punti distribuiti su 2 dimensioni
 # con 3 centri (cluster) e una deviazione standard elevata (cluster_std=4.0)
-n_samples = 100
-n_clusters = 3
-X, _ = make_blobs(n_samples=n_samples, n_features=2, centers=n_clusters, random_state=42, cluster_std=4.0)
+n_samples = 150 # Numero di punti da generare
+n_clusters = 2 # Numero di cluster
+
+# Dati
+# n_features=2: due dimensioni
+# centers=n_clusters: numero di cluster
+# random_state=42: seed per la riproducibilità
+# cluster_std=4.0: deviazione standard dei cluster, maggiore significa cluster più dispersi
+X, _ = make_blobs(n_samples=n_samples, n_features=2, centers=n_clusters, random_state=42, cluster_std=3.0)
 
 # Visualizzazione dei dati originali
 plt.scatter(X[:, 0], X[:, 1], s=10)
@@ -42,7 +48,7 @@ for K in [2, 3, 4]:
     model.create_kmeans_model()
     
     # Risoluzione del modello con un limite temporale di 60 secondi.
-    model.solve(time_limit=60)
+    model.solve(time_limit=120)
     
     # Estrazione dei cluster ottenuti dalla soluzione.
     clusters = model.get_clusters()
@@ -56,7 +62,7 @@ for K in [2, 3, 4]:
     # Il metodo create_minimax_model() costruisce il modello MIP secondo la formulazione Minimax,
     # che minimizza il diametro massimo (la massima distanza intra-cluster) per ottenere cluster più compatti.
     model.create_minimax_model()
-    model.solve(time_limit=60)
+    model.solve(time_limit=120)
     
     # Estrazione e visualizzazione dei cluster ottenuti con l'approccio Minimax.
     clusters = model.get_clusters()
