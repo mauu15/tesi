@@ -21,7 +21,7 @@ n_clusters = 2 # Numero di cluster
 X, _ = make_blobs(n_samples=n_samples, n_features=2, centers=n_clusters, random_state=42, cluster_std=3.0)
 
 # Visualizzazione dei dati originali
-plt.scatter(X[:, 0], X[:, 1], s=10)
+plt.scatter(X[:, 0], X[:, 1], s=10) # s=10: dimensione dei punti, 10 pixel
 plt.title('Dati Originali')
 plt.xlabel('Feature 1')
 plt.ylabel('Feature 2')
@@ -69,3 +69,22 @@ for K in [2, 3, 4]:
     print(f"Minimax - Cluster trovati: {len(clusters)}")
     # Salvataggio dell'immagine con il plot dei cluster ottenuti dal modello Minimax MIP
     plot_mip_clusters(X, clusters, filename=f'minimax_clusters_K{K}.png', output_dir=minimax_dir)
+
+    # ----------------------------------------
+    # Modello K-Means con distanza pesata
+    # ----------------------------------------
+    # Creazione di pesi casuali per i punti del dataset.
+    # I pesi sono utilizzati per ponderare le distanze tra i punti e i centroidi
+
+    weights = np.random.uniform(0.5, 1.0, size=X.shape[0])
+
+
+    K = 3 # Numero di cluster
+    print(f"\n--- Risoluzione pesata con K={K} ---")
+    model_weighted = MIPClustering(X, K)
+    model_weighted.create_weighted_kmeans_model(weights)
+    model_weighted.solve(time_limit=60)
+    clusters_weighted = model_weighted.get_clusters()
+    
+    # Salva l'immagine con il plot dei cluster ottenuti dal modello K-Means pesato
+    plot_mip_clusters(X, clusters_weighted, filename=f'weighted_kmeans_clusters_K{K}.png', output_dir=kmeans_dir)
