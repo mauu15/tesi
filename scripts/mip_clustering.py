@@ -150,7 +150,6 @@ class MIPClustering:
         - time_limit: tempo massimo in secondi per la risoluzione del modello.
         """
         self.model.setParam('TimeLimit', time_limit)
-        # self.model.setParam('Threads', threads)
         self.model.optimize()
     
     def get_clusters(self):
@@ -174,3 +173,20 @@ class MIPClustering:
                 clusters[k] = [i for i in range(self.N) if self.x[i, medoids[k]].X > 0.5]
 
         return clusters
+
+
+    def get_medoids(self):
+        """
+        Estrae i medoidi dalla
+        soluzione ottimale.
+
+        Ritorna:
+        - Un dizionario in cui ogni chiave è l'ID del cluster (0, 1, ..., K-1)
+          e il valore è l'indice del medoide assegnato a quel cluster.
+        """
+        medoids = {}
+        if self.model.status == GRB.OPTIMAL:
+            ones = [j for j in range(self.N) if self.y[j].X > 0.5]
+            for k in range(self.K):
+                medoids[k] = ones[k]
+        return medoids
