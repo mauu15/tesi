@@ -1,5 +1,5 @@
 import gurobipy as gp
-from gurobipy import GRB
+from gurobipy import GRB, quicksum
 import numpy as np
 from scipy.spatial import distance_matrix
 
@@ -22,55 +22,46 @@ class MIPClustering:
         self.x = None      # Variabili di assegnazione dei punti ai cluster
         self.y = None      # Variabili che indicano il centroide in ogni cluster (solo per K-Means)
 
-    def create_kmeans_model(self):
-        """Crea il modello MIP per il clustering K-Means."""
-        self.model = gp.Model("KMeansMIP")
+    def create_kmedoids_model(tau, k):
+        n = len(tau)
+        model = gp.Model("k_medoids")
         
-        # ---------------------------
-        # Definizione delle variabili
-        # ---------------------------
-        # x[i,k] = 1 se il punto i è assegnato al cluster k, 0 altrimenti.
-        self.x = self.model.addVars(self.N, self.K, vtype=GRB.BINARY, name="x")
-        # y[j,k] = 1 se il punto j è scelto come centroide del cluster k, 0 altrimenti.
-        self.y = self.model.addVars(self.N, self.K, vtype=GRB.BINARY, name="y")
-        # d[i,k]: distanza calcolata come la somma pesata delle distanze tra il punto i e il centroide del cluster k.
-        d = self.model.addVars(self.N, self.K, vtype=GRB.CONTINUOUS, name="d")
+        # Variabili di assegnazione: x[i,j] = 1 se il punto i è assegnato al medoid j
+        x = model.addVars(n, n, vtype=GRB.BINARY, name="x")
+        # Variabili che indicano se il punto j è scelto come medoid
+        y = model.addVars(n, vtype=GRB.BINARY, name="y")
         
-        # ---------------------------
-        # Vincoli del modello K-Means
-        # ---------------------------
-        # Vincolo 1: Ogni punto deve essere assegnato a un solo cluster.
-        for i in range(self.N):
-            self.model.addConstr(gp.quicksum(self.x[i, k] for k in range(self.K)) == 1, f"assign_{i}")
+        # Vincolo 1: ogni punto deve essere assegnato a un unico medoid
+        model.addConstrs(
+            (quicksum(x[i, j] for j in range(n)) == 1 for i in range(n)),
+            name="assignment"
+        )
         
-        # Vincolo 2: Ogni cluster deve avere esattamente un centroide.
-        for k in range(self.K):
-            self.model.addConstr(gp.quicksum(self.y[j, k] for j in range(self.N)) == 1, f"centroid_{k}")
+        # **Vincolo 2: ci sono esattamente K medoids 
+        model.addConstr(
+            quicksum(y[j] for j in range(n)) == k,
+            name="k_clusters"
+        )
+
+        # Vincolo 3: un punto i può essere assegnato a j solo se j è scelto come medoid
+        model.addConstrs(
+            (x[i, j] <= y[j] for i in range(n) for j in range(n)),
+            name="link"
+        )
         
-        # Vincolo 3: Un punto può essere centroide di un cluster solo se è assegnato a quel cluster.
-        for j in range(self.N):
-            for k in range(self.K):
-                self.model.addConstr(self.y[j, k] <= self.x[j, k], f"centroid_assign_{j}_{k}")
+        def distance(a, b):
+            return np.linalg.norm(a - b)
         
-        # Vincolo 4: Calcolo delle distanze d[i,k] per ogni punto i e cluster k.
-        # La distanza viene calcolata come la somma delle distanze tra il punto i e tutti i punti j,
-        # pesata dalla variabile y[j,k] (che indica il centroide del cluster).
-        for i in range(self.N):
-            for k in range(self.K):
-                self.model.addConstr(
-                    d[i, k] == gp.quicksum(self.tau[i][j] * self.y[j, k] for j in range(self.N)),
-                    f"dist_{i}_{k}"
-                )
+        # Obiettivo: minimizzare la somma delle distanze tra i punti e il loro medoid assegnato
+        model.setObjective(
+            quicksum(distance(tau[i][j]) * x[i, j] for i in range(n) for j in range(n)),
+            GRB.MINIMIZE
+        )
+
+        return model, x, y
         
-        # ---------------------------
-        # Funzione obiettivo
-        # ---------------------------
-        # Minimizzare la somma delle distanze per ogni punto e cluster, diviso il numero di cluster.
-        obj = gp.quicksum(d[i, k] for i in range(self.N) for k in range(self.K)) / self.K
-        self.model.setObjective(obj, GRB.MINIMIZE)
-    
     def create_minimax_model(self):
-        """Crea il modello MIP per il clustering Minimax."""
+        
         self.model = gp.Model("MinimaxClustering")
         # x[i,k] = 1 se il punto i è assegnato al cluster k.
         self.x = self.model.addVars(self.N, self.K, vtype=GRB.BINARY, name="x")
