@@ -22,43 +22,43 @@ class MIPClustering:
         self.x = None      # Variabili di assegnazione dei punti ai cluster
         self.y = None      # Variabili che indicano il centroide in ogni cluster (solo per K-Means)
 
-    def create_kmedoids_model(tau, k):
-        n = len(tau)
+    def create_kmedoids_model(self):
+        n = len(self.tau)
         model = gp.Model("k_medoids")
         
         # Variabili di assegnazione: x[i,j] = 1 se il punto i è assegnato al medoid j
-        x = model.addVars(n, n, vtype=GRB.BINARY, name="x")
+        self.x = model.addVars(n, n, vtype=GRB.BINARY, name="x")
         # Variabili che indicano se il punto j è scelto come medoid
-        y = model.addVars(n, vtype=GRB.BINARY, name="y")
+        self.y = model.addVars(n, vtype=GRB.BINARY, name="y")
         
         # Vincolo 1: ogni punto deve essere assegnato a un unico medoid
         model.addConstrs(
-            (quicksum(x[i, j] for j in range(n)) == 1 for i in range(n)),
+            (quicksum(self.x[i, j] for j in range(n)) == 1 for i in range(n)),
             name="assignment"
         )
         
-        # **Vincolo 2: ci sono esattamente K medoids 
+        # Vincolo 2: esattamente K medoids
         model.addConstr(
-            quicksum(y[j] for j in range(n)) == k,
+            quicksum(self.y[j] for j in range(n)) == self.K,
             name="k_clusters"
         )
-
+        
         # Vincolo 3: un punto i può essere assegnato a j solo se j è scelto come medoid
         model.addConstrs(
-            (x[i, j] <= y[j] for i in range(n) for j in range(n)),
+            (self.x[i, j] <= self.y[j] for i in range(n) for j in range(n)),
             name="link"
         )
         
-        def distance(a, b):
-            return np.linalg.norm(a - b)
-        
         # Obiettivo: minimizzare la somma delle distanze tra i punti e il loro medoid assegnato
+        # Poiché self.tau contiene già le distanze, basta usarlo direttamente.
         model.setObjective(
-            quicksum(distance(tau[i][j]) * x[i, j] for i in range(n) for j in range(n)),
+            quicksum(self.tau[i][j]*self.x[i, j] for i in range(n) for j in range(n)),
             GRB.MINIMIZE
         )
+        
+        # Salva il modello e le variabili nell'istanza, se necessario
+        self.model = model
 
-        return model, x, y
         
     def create_minimax_model(self):
         
@@ -141,7 +141,7 @@ class MIPClustering:
         self.model.setObjective(obj, GRB.MINIMIZE)
 
     
-    def solve(self, time_limit=300):
+    def solve(self, time_limit=10000):
         """
         Risolve il modello MIP impostato (sia per K-Means che per Minimax)
         impostando un limite temporale per la risoluzione.
@@ -150,6 +150,7 @@ class MIPClustering:
         - time_limit: tempo massimo in secondi per la risoluzione del modello.
         """
         self.model.setParam('TimeLimit', time_limit)
+        # self.model.setParam('Threads', threads)
         self.model.optimize()
     
     def get_clusters(self):
@@ -160,9 +161,16 @@ class MIPClustering:
         - Un dizionario in cui ogni chiave è l'ID del cluster (0, 1, ..., K-1)
           e il valore è la lista degli indici dei punti assegnati a quel cluster.
         """
+
+        medoids = {}
         clusters = {}
         if self.model.status == GRB.OPTIMAL:
+            ones = [j for j in range(self.N) if self.y[j].X > 0.5]
+            for k in range(self.K):
+                medoids[k] = ones[k]
+                
             for k in range(self.K):
                 # Se la variabile x[i,k] è maggiore di 0.5 (dato che è binaria) il punto i è assegnato a cluster k.
-                clusters[k] = [i for i in range(self.N) if self.x[i, k].X > 0.5]
+                clusters[k] = [i for i in range(self.N) if self.x[i, medoids[k]].X > 0.5]
+
         return clusters
