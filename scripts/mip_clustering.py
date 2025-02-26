@@ -177,16 +177,9 @@ class MIPClustering:
 
     def get_medoids(self):
         """
-        Estrae i medoidi dalla
-        soluzione ottimale.
-
+        Estrae gli indici dei medoid dalla soluzione ottimale.
         Ritorna:
-        - Un dizionario in cui ogni chiave è l'ID del cluster (0, 1, ..., K-1)
-          e il valore è l'indice del medoide assegnato a quel cluster.
+        - Una lista degli indici dei punti che sono medoid.
         """
-        medoids = {}
-        if self.model.status == GRB.OPTIMAL:
-            ones = [j for j in range(self.N) if self.y[j].X > 0.5]
-            for k in range(self.K):
-                medoids[k] = ones[k]
+        medoids = [j for j in range(self.N) if self.y[j].X > 0.5]
         return medoids
