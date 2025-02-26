@@ -9,8 +9,8 @@ from visualization import plot_clusters, kmedoids_dir, minimax_dir, BASE_DIR
 # Generazione dei dati sintetici
 # -------------------------------
 
-n_samples = 150 # Numero di punti da generare
-n_clusters = 2 # Numero di cluster
+n_samples = 50 # Numero di punti da generare
+n_clusters = 4 # Numero di cluster
 
 # Dati
 # n_features=2: due dimensioni
@@ -51,10 +51,35 @@ for K in [2, 3, 4]:
     
     # Estrazione dei cluster ottenuti dalla soluzione.
     clusters = model.get_clusters()
+
+    medoid_indices = model.get_medoids()
+
     print(f"K-Means - Cluster trovati: {len(clusters)}")
     # Salvataggio dell'immagine con il plot dei cluster ottenuti dal modello K-Medoids MIP
-    plot_clusters(X, clusters, filename=f'kmedoids_clusters_K{K}.png', output_dir=kmedoids_dir)
+    plot_clusters(X, clusters, medoid_indices=medoid_indices, filename=f'kmedoids_clusters_K{K}.png', output_dir=kmedoids_dir)
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     # ----------------------------------------
     # Modello Minimax MIP
     # ----------------------------------------
