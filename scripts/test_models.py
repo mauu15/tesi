@@ -3,13 +3,12 @@ import os
 from sklearn.datasets import make_blobs
 import matplotlib.pyplot as plt
 from mip_clustering import MIPClustering
-from visualization import plot_mip_clusters, kmeans_dir, minimax_dir, BASE_DIR
+from visualization import plot_clusters, kmedoids_dir, minimax_dir, BASE_DIR
 
 # -------------------------------
 # Generazione dei dati sintetici
 # -------------------------------
-# Utilizziamo make_blobs per creare un dataset di 100 punti distribuiti su 2 dimensioni
-# con 3 centri (cluster) e una deviazione standard elevata (cluster_std=4.0)
+
 n_samples = 150 # Numero di punti da generare
 n_clusters = 2 # Numero di cluster
 
@@ -45,7 +44,7 @@ for K in [2, 3, 4]:
     # ----------------------------------------
     # Il metodo create_kmeans_model() costruisce il modello MIP basato sulla formulazione
     # K-Means, che minimizza la somma pesata delle distanze tra i punti e il centroide assegnato.
-    model.create_kmeans_model()
+    model.create_kmedoids_model()
     
     # Risoluzione del modello con un limite temporale di 60 secondi.
     model.solve(time_limit=6000)
@@ -53,38 +52,38 @@ for K in [2, 3, 4]:
     # Estrazione dei cluster ottenuti dalla soluzione.
     clusters = model.get_clusters()
     print(f"K-Means - Cluster trovati: {len(clusters)}")
-    # Salvataggio dell'immagine con il plot dei cluster ottenuti dal modello K-Means MIP
-    plot_mip_clusters(X, clusters, filename=f'kmeans_clusters_K{K}.png', output_dir=kmeans_dir)
+    # Salvataggio dell'immagine con il plot dei cluster ottenuti dal modello K-Medoids MIP
+    plot_clusters(X, clusters, filename=f'kmedoids_clusters_K{K}.png', output_dir=kmedoids_dir)
     
     # ----------------------------------------
     # Modello Minimax MIP
     # ----------------------------------------
     # Il metodo create_minimax_model() costruisce il modello MIP secondo la formulazione Minimax,
     # che minimizza il diametro massimo (la massima distanza intra-cluster) per ottenere cluster più compatti.
-    model.create_minimax_model()
-    model.solve(time_limit=6000)
+    # model.create_minimax_model()
+    # model.solve(time_limit=6000)
     
-    # Estrazione e visualizzazione dei cluster ottenuti con l'approccio Minimax.
-    clusters = model.get_clusters()
-    print(f"Minimax - Cluster trovati: {len(clusters)}")
-    # Salvataggio dell'immagine con il plot dei cluster ottenuti dal modello Minimax MIP
-    plot_mip_clusters(X, clusters, filename=f'minimax_clusters_K{K}.png', output_dir=minimax_dir)
+    # # Estrazione e visualizzazione dei cluster ottenuti con l'approccio Minimax.
+    # clusters = model.get_clusters()
+    # print(f"Minimax - Cluster trovati: {len(clusters)}")
+    # # Salvataggio dell'immagine con il plot dei cluster ottenuti dal modello Minimax MIP
+    # plot_clusters(X, clusters, filename=f'minimax_clusters_K{K}.png', output_dir=minimax_dir)
 
-    # ----------------------------------------
-    # Modello K-Means con distanza pesata
-    # ----------------------------------------
-    # Creazione di pesi casuali per i punti del dataset.
-    # I pesi sono utilizzati per ponderare le distanze tra i punti e i centroidi
+    # # ----------------------------------------
+    # # Modello K-Means con distanza pesata
+    # # ----------------------------------------
+    # # Creazione di pesi casuali per i punti del dataset.
+    # # I pesi sono utilizzati per ponderare le distanze tra i punti e i centroidi
 
-    weights = np.random.uniform(0.5, 1.0, size=X.shape[0])
+    # weights = np.random.uniform(0.5, 1.0, size=X.shape[0])
 
 
-    K = 3 # Numero di cluster
-    print(f"\n--- Risoluzione pesata con K={K} ---")
-    model_weighted = MIPClustering(X, K)
-    model_weighted.create_weighted_kmeans_model(weights)
-    model_weighted.solve(time_limit=6000)
-    clusters_weighted = model_weighted.get_clusters()
+    # K = 3 # Numero di cluster
+    # print(f"\n--- Risoluzione pesata con K={K} ---")
+    # model_weighted = MIPClustering(X, K)
+    # model_weighted.create_weighted_kmeans_model(weights)
+    # model_weighted.solve(time_limit=6000)
+    # clusters_weighted = model_weighted.get_clusters()
     
     # Salva l'immagine con il plot dei cluster ottenuti dal modello K-Means pesato
-    plot_mip_clusters(X, clusters_weighted, filename=f'weighted_kmeans_clusters_K{K}.png', output_dir=kmeans_dir)
+    #plot_clusters(X, clusters_weighted, filename=f'weighted_kmeans_clusters_K{K}.png', output_dir=kmedoids_dir)
