@@ -92,9 +92,6 @@ weights = np.random.uniform(0.5, 1.0, size=X.shape[0])
 e poi uso il nuovo metodo `create_weighted_kmeans_model(weights)` (definito in `mip_clustering.py`) per testare questa versione pesata. Così possiamo confrontare i risultati del modello base con quelli del modello pesato e vedere se l'introduzione dei pesi offre qualche vantaggio o una diversa struttura dei cluster.
 
 
-Ecco la sezione aggiuntiva da integrare nel README:
-
----
 
 ## Applicazione Reale
 
