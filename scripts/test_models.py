@@ -48,7 +48,7 @@ for K in [2, 3, 4]:
     model.create_kmeans_model()
     
     # Risoluzione del modello con un limite temporale di 60 secondi.
-    model.solve(time_limit=120)
+    model.solve(time_limit=6000)
     
     # Estrazione dei cluster ottenuti dalla soluzione.
     clusters = model.get_clusters()
@@ -62,7 +62,7 @@ for K in [2, 3, 4]:
     # Il metodo create_minimax_model() costruisce il modello MIP secondo la formulazione Minimax,
     # che minimizza il diametro massimo (la massima distanza intra-cluster) per ottenere cluster più compatti.
     model.create_minimax_model()
-    model.solve(time_limit=120)
+    model.solve(time_limit=6000)
     
     # Estrazione e visualizzazione dei cluster ottenuti con l'approccio Minimax.
     clusters = model.get_clusters()
@@ -83,7 +83,7 @@ for K in [2, 3, 4]:
     print(f"\n--- Risoluzione pesata con K={K} ---")
     model_weighted = MIPClustering(X, K)
     model_weighted.create_weighted_kmeans_model(weights)
-    model_weighted.solve(time_limit=60)
+    model_weighted.solve(time_limit=6000)
     clusters_weighted = model_weighted.get_clusters()
     
     # Salva l'immagine con il plot dei cluster ottenuti dal modello K-Means pesato
