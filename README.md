@@ -31,7 +31,7 @@ Rappresenta una richiesta (visita a un paziente).
 
 **Attributi principali:**
 - `i`: Identificativo della richiesta.
-- `patient`: Nodo associato al paziente (è stato rinominato da “origin” per maggiore chiarezza).
+- `patient`: Nodo associato al paziente.
 - `duration`: Durata della visita in minuti.
 - `temporal_window`: Finestra temporale in cui la richiesta deve essere servita (α, β).
 - `cluster_id`: Etichetta del cluster a cui il paziente appartiene, assegnata dall’algoritmo di clustering.
@@ -121,10 +121,10 @@ Nel file di test, è prevista una variabile booleana (ad esempio `use_random`) n
 ## 6. Test e Validazioni
 
 - **Esecuzione dei Test:**  
-  Sono stati creati script di test che integrano:
+  Il test integra:
   - La generazione dei nodi tramite `make_blobs`.
   - L'esecuzione del clustering K-Medoids e la rimappatura dei cluster_id.
-  - La creazione di oggetti Node, Request (con cluster_id) e Operator (assegnando a ciascun operatore un cluster_id basato sul depot o su altri criteri).
+  - La creazione di oggetti Node, Request (con cluster_id) e Operator (assegnando a ciascun operatore un cluster_id basato sul depot).
   - L'esecuzione del GRS, con il filtro dinamico che restringe la ricerca degli operatori al cluster della richiesta.
 
 - **Messaggi di Debug:**  
