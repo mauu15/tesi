@@ -9,15 +9,15 @@ from visualization import plot_clusters, kmedoids_dir, minimax_dir, BASE_DIR
 # Generazione dei dati sintetici
 # -------------------------------
 
-n_samples = 50 # Numero di punti da generare
-n_clusters = 4 # Numero di cluster
+n_samples = 400 # Numero di punti da generare
+n_clusters = 5 # Numero di cluster
 
 # Dati
 # n_features=2: due dimensioni
 # centers=n_clusters: numero di cluster
 # random_state=42: seed per la riproducibilità
 # cluster_std=4.0: deviazione standard dei cluster, maggiore significa cluster più dispersi
-X, _ = make_blobs(n_samples=n_samples, n_features=2, centers=n_clusters, random_state=42, cluster_std=3.0)
+X, _ = make_blobs(n_samples=n_samples, n_features=2, centers=n_clusters, random_state=42, cluster_std=4.0)
 
 # Visualizzazione dei dati originali
 plt.scatter(X[:, 0], X[:, 1], s=10) # s=10: dimensione dei punti, 10 pixel
@@ -25,14 +25,14 @@ plt.title('Dati Originali')
 plt.xlabel('Feature 1')
 plt.ylabel('Feature 2')
 original_img_path = os.path.join(BASE_DIR, "imgs", "original_data.png")
-plt.savefig(original_img_path, dpi=300)
+plt.savefig(original_img_path, dpi=400)
 print(f"Immagine salvata in: {original_img_path}")
 plt.show()
 
 # ----------------------------------------------
 # Test dei modelli MIP per diversi valori di K
 # ----------------------------------------------
-for K in [2, 3, 4]:
+for K in [2, 3, 4, 5]:
     print(f"\n--- Risoluzione con K={K} ---")
     
     # Creazione dell'istanza del modello MIPClustering.
