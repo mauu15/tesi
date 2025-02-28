@@ -21,7 +21,7 @@ Rappresenta l’operatore/infermiere.
 - `id`: Identificativo univoco.
 - `home`: Nodo di partenza (depot).
 - `work_time`: Tempo di lavoro residuo (default 300 minuti).
-- `t0`: Orario corrente (default 420 minuti, corrispondente alle 7:00).
+- `t0`: Il primo momento disponibile per l'operatore per servire una richiesta, 420 = 7:00.
 - `current_patient`: Punto attuale in cui si trova l'operatore (inizialmente impostato al depot).
 - `cluster_id`: Indica l'area geografica o il cluster a cui l'operatore è assegnato.
 
