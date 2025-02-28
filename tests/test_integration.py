@@ -16,7 +16,7 @@ def simple_requests(nodes, cluster_labels, durations):
     Genera richieste con finestra temporale fissa (420, 780) per ciascun nodo.
     """
     requests = []
-    fixed_window = (420, 780) # Finestra temporale fissa per tutte le richieste (7am - 1pm)
+    fixed_window = (420, 780) # Finestra temporale fissa per tutte le richieste (7:00 - 13:00)
     for i, node in enumerate(nodes):
         dur = durations[i % len(durations)]
         req = Request(i=i, patient=node, duration=dur, temporal_window=fixed_window, cluster_id=cluster_labels[i])
