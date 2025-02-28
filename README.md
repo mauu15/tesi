@@ -13,10 +13,10 @@
 ## 2. Modelli e Classi Definite
 
 ### **Classe Node**  
-Rappresenta un punto geografico con un identificativo e coordinate (es. latitudine, longitudine).
+Rappresenta un paziente con un identificativo e coordinate.
 
 ### **Classe Operator**  
-Rappresenta l’operatore/infermiere.  
+Rappresenta l’operatore.
 **Attributi principali:**
 - `id`: Identificativo univoco.
 - `home`: Nodo di partenza (depot).
