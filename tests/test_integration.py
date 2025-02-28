@@ -52,10 +52,6 @@ def test_integration(use_random=True):
 
     cluster_labels, medoid_mapping = MIPClustering.remap_cluster_labels(cluster_labels)
 
-    print("\nMappatura Medoid → Nuovo Cluster ID:")
-    for old_id, new_id in medoid_mapping.items():
-        print(f"  Medoid {old_id} → Cluster {new_id}")
-    
     # 3. Crea gli oggetti Node
     nodes = [Node(id=i, coordinates=(points[i, 0], points[i, 1])) for i in range(n_samples)]
     
@@ -78,7 +74,7 @@ def test_integration(use_random=True):
     - 600: 10am      630: 10:30am
     - 660: 11am      690: 11:30am
     - 720: 12pm      750: 12:30pm
-    - 780: 1pm       810: 1:30pm
+    - 780: 1pm       
     """
     if use_random:
         requests = random_requests(nodes, cluster_labels, durations,
