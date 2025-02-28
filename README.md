@@ -31,7 +31,7 @@ Rappresenta una richiesta (visita a un paziente).
 - `i`: Identificativo della richiesta.
 - `patient`: Nodo associato al paziente (è stato rinominato da “origin” per maggiore chiarezza).
 - `duration`: Durata della visita in minuti.
-- `temporal_window`: Finestra temporale in cui la richiesta deve essere servita (ad es. (α, β)).
+- `temporal_window`: Finestra temporale in cui la richiesta deve essere servita (α, β).
 - `cluster_id`: Etichetta del cluster a cui il paziente appartiene, assegnata dall’algoritmo di clustering.
 
 ---
