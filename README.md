@@ -17,6 +17,7 @@ Rappresenta un paziente con un identificativo e coordinate.
 
 ### **Classe Operator**  
 Rappresenta l’operatore.
+
 **Attributi principali:**
 - `id`: Identificativo univoco.
 - `home`: Nodo di partenza (depot).
@@ -27,6 +28,7 @@ Rappresenta l’operatore.
 
 ### **Classe Request**  
 Rappresenta una richiesta (visita a un paziente).  
+
 **Attributi principali:**
 - `i`: Identificativo della richiesta.
 - `patient`: Nodo associato al paziente (è stato rinominato da “origin” per maggiore chiarezza).
