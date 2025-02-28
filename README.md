@@ -130,5 +130,3 @@ Nel file di test, è prevista una variabile booleana (ad esempio `use_random`) n
 - **Messaggi di Debug:**  
   La funzione `is_feasible` include stampe di log che aiutano a diagnosticare perché alcune richieste non vengono assegnate (ad esempio, perché l'orario di arrivo supera la finestra temporale).
 
-- **Risultati:**  
-  I test hanno mostrato che il sistema assegna correttamente le richieste agli operatori in base al cluster e che, modificando i parametri (durate, finestre temporali), è possibile analizzare e ottimizzare l'assegnamento.
