@@ -59,7 +59,7 @@ class MIPClustering:
         # Salva il modello e le variabili nell'istanza, se necessario
         self.model = model
 
-        
+    """   
     def create_minimax_model(self):
         
         self.model = gp.Model("MinimaxClustering")
@@ -95,16 +95,7 @@ class MIPClustering:
 
     # Aggiunta di un metodo per creare il modello MIP per K-Means pesato
     def create_weighted_kmeans_model(self, weights):
-        """
-        Crea il modello MIP per K-Means pesato, utilizzando i pesi per ponderare le distanze.
-        
-        In questa formulazione, la distanza d[i,k] per il punto i e il cluster k è definita come:
-           d[i,k] = w_i * sum_j (tau[i][j] * w_j * y[j,k])
-        dove:
-          - w_i sono i pesi forniti per ogni punto.
-          - tau[i][j] è la distanza tra i punti i e j.
-          - y[j,k] è la variabile binaria che indica se il punto j è il centroide del cluster k.
-        """
+     
         self.model = gp.Model("WeightedKMeansMIP")
         
         # Variabili: x indica l'assegnazione, y indica il centroide
@@ -140,7 +131,8 @@ class MIPClustering:
         obj = gp.quicksum(d[i, k] for i in range(self.N) for k in range(self.K)) / self.K
         self.model.setObjective(obj, GRB.MINIMIZE)
 
-    
+    """
+
     def solve(self, time_limit=10000):
         """
         Risolve il modello MIP impostato (sia per K-Means che per Minimax)
@@ -183,3 +175,40 @@ class MIPClustering:
         """
         medoids = [j for j in range(self.N) if self.y[j].X > 0.5]
         return medoids
+    
+
+    def get_cluster_labels(self) -> list:
+        """
+        Estrae le etichette di cluster per ogni punto, in base alla soluzione
+        del modello K-Medoids. Per ogni punto i, l'etichetta è l'indice j per cui
+        la variabile x[i,j] è pari a 1.
+        
+        :return: Una lista di lunghezza N, dove l'elemento in posizione i è il cluster_id
+                (l'indice del medoid assegnato) per il punto i.
+        """
+        
+        labels = [-1] * self.N  # Lista per i cluster, -1 indica nessuna assegnazione.
+        for i in range(self.N):
+            for j in range(self.N):
+                
+                if self.x[i, j].X > 0.5: 
+                    labels[i] = j
+                    break
+        return labels
+
+
+    def remap_cluster_labels(cluster_labels):
+        """
+        Converte i cluster_id dei medoids nei valori consecutivi (0, 1, 2, ...)
+        invece degli indici originali dei medoids.
+
+        :param cluster_labels: Lista dei cluster_id originali (indice dei medoids)
+        :return: Lista con cluster_id rinumerati e mappa di conversione.
+        """
+        unique_medoids = sorted(set(cluster_labels))  # Ottieni i medoids unici ordinati
+        medoid_to_new_id = {medoid: i for i, medoid in enumerate(unique_medoids)}  # Mappatura
+
+        # Crea una nuova lista con cluster_id consecutivi
+        new_cluster_labels = [medoid_to_new_id[cluster] for cluster in cluster_labels]
+
+        return new_cluster_labels, medoid_to_new_id
