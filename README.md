@@ -41,14 +41,15 @@ Rappresenta una richiesta (visita a un paziente).
 Il modulo **grs.py** include le seguenti funzioni chiave:
 
 - **`compute_travel_time(node_a, node_b)`**  
-  Calcola il tempo di viaggio tra due nodi, utilizzando la distanza euclidea come proxy.
+  Calcola il tempo di viaggio tra due nodi, utilizzando la distanza euclidea.
 
 - **`is_feasible(operator, request)`**  
   Verifica se un operatore può servire una richiesta controllando due condizioni:
   - L'orario di arrivo (calcolato come `t0 + travel_time`) deve rientrare nella finestra temporale della richiesta.
-  - La somma di `travel_time` e della `duration` della richiesta non deve superare il `work_time` residuo dell'operatore.
+  - La `duration` della richiesta non deve superare il `work_time` residuo dell'operatore.
   
   Il metodo include stampe di debug per evidenziare il motivo per cui una richiesta non è fattibile (ad es. finestra temporale non rispettata o tempo richiesto eccessivo).
+
 
 - **`filter_operators_by_cluster(request, operators)`**  
   Restringe il set degli operatori ai soli quelli aventi lo stesso `cluster_id` della richiesta. Se nessun operatore corrisponde, viene usato un fallback che considera tutti gli operatori.
@@ -96,7 +97,7 @@ Questa funzione crea una mappatura dai vecchi cluster_id (gli indici dei medoids
 
 ### **Modalità di Generazione delle Richieste**
 
-Per testare il sistema sono state implementate due modalità:
+Per testare il sistema si può utilizzare il file `test_integration.py`, che implementa due modalità:
 
 - **`simple_requests`**  
   Genera richieste con una finestra temporale fissa (ad es. da 7:00 a 13:00, cioè (420, 780)).
@@ -108,7 +109,10 @@ Per testare il sistema sono state implementate due modalità:
 
 ### **Selezione della Modalità di Test**
 
-Nel file di test (ad es. `test_integration.py`), è prevista una variabile booleana (ad esempio `use_random`) nel main che permette di attivare una delle due implementazioni. Ciò consente di confrontare le due modalità in fase di validazione.
+Nel file di test, è prevista una variabile booleana (ad esempio `use_random`) nel main che permette, se impostata a `True`, di attivare l'implementazione random (attivata di default). È possibile configurare i valori delle richieste con i parametri:
+- `alpha_min=420` e `alpha_max=450`: orario di inizio minimo e massimo, in minuti (tra le 7:00 e le 7:30)
+- `beta_min_offset=40`: l'orario di fine è almeno 40 min dopo alpha
+- `beta_max=780`: l'orario di fine massimo (13:00, per la mattina)
 
 ---
 
