@@ -49,13 +49,13 @@ def is_feasible(operator: Operator, request: Request) -> bool:
 
     # Controllo finestra temporale
     if not (arrival_time <= beta):
-        print(f"Request {request.i} NON fattibile per operatore {operator.id}:")
+        print(f"Richiesta {request.i} NON fattibile per l'operatore {operator.id}:")
         print(f"  Arrival time = {arrival_time:.2f} non rientra in finestra ({alpha}, {beta})")
         return False
 
     # Controllo tempo di lavoro residuo
     if request.duration > operator.work_time:
-        print(f"Request {request.i} NON fattibile per operatore {operator.id}:")
+        print(f"Richiesta {request.i} NON fattibile per l'operatore {operator.id}:")
         print(f"        Durata = {request.duration} > Tempo rimanente w0 = {operator.work_time:.0f}")
         return False
 
