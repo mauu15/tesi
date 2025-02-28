@@ -8,7 +8,7 @@ class Node:
         Classe Node
 
         :param id: Identificativo univoco del nodo.
-        :param coordinates: Coppia di coordinate (latitudine, longitudine) oppure qualsiasi altra rappresentazione spaziale.
+        :param coordinates: Coppia di coordinate
         """
         self.id = id
         self.coordinates = coordinates
