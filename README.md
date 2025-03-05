@@ -21,9 +21,11 @@ Rappresenta l’operatore.
 **Attributi principali:**
 - `id`: Identificativo univoco.
 - `home`: Nodo di partenza (depot).
-- `work_time`: Tempo di lavoro residuo (default 300 minuti).
-- `t0`: Il primo momento disponibile per l'operatore per servire una richiesta, 420 = 7:00.
-- `current_patient`: Punto attuale in cui si trova l'operatore (inizialmente impostato al depot).
+- `eo`: Primo istante disponibile per servire una richiesta (inizio turno, es. 420 per il mattino o 960 per il pomeriggio).
+- `ho`: Tempo residuo nel turno (inizialmente 300 minuti, cioè 5 ore).
+- `wo`: Tempo di lavoro accumulato (inizialmente 0).
+- `Lo`: Lista delle richieste assegnate, in cui ogni elemento è una tupla (richiesta, istante di inizio servizio).
+- `current_patient`: Punto attuale in cui si trova l’operatore (inizialmente il depot).
 - `cluster_id`: Indica l'area geografica o il cluster a cui l'operatore è assegnato.
 
 ### **Classe Request**  
@@ -40,31 +42,38 @@ Rappresenta una richiesta (visita a un paziente).
 
 ## 3. Implementazione dell’Algoritmo GRS (Greedy Routing and Scheduling)
 
-Il modulo **grs.py** include le seguenti funzioni chiave:
+### grs_time.py
+
+Il modulo **grs_time.py** include le seguenti funzioni chiave:
 
 - **`compute_travel_time(node_a, node_b)`**  
-  Calcola il tempo di viaggio tra due nodi, utilizzando la distanza euclidea.
+  Calcola il tempo di viaggio tra due nodi utilizzando la distanza euclidea (1 unità = 1 minuto).
 
-- **`is_feasible(operator, request)`**  
-  Verifica se un operatore può servire una richiesta controllando due condizioni:
-  - L'orario di arrivo (calcolato come `t0 + travel_time`) deve rientrare nella finestra temporale della richiesta.
-  - La `duration` della richiesta non deve superare il `work_time` residuo dell'operatore.
+- **`is_feasible(operator, request, shift_end, debug=False)`**  
+  Verifica se un operatore può servire una richiesta, controllando:
+  - Se l’orario di arrivo (eo + travel) rientra nella finestra temporale della richiesta.
+  - Se l’assegnazione della richiesta (duration) non supera la fine del turno (shift_end) e non eccede il tempo residuo (ho).
   
-  Il metodo include stampe di debug per evidenziare il motivo per cui una richiesta non è fattibile (ad es. finestra temporale non rispettata o tempo richiesto eccessivo).
-
+  È stato aggiunto un parametro `debug` per stampare i messaggi di rifiuto solo quando necessario.
 
 - **`filter_operators_by_cluster(request, operators)`**  
-  Restringe il set degli operatori ai soli quelli aventi lo stesso `cluster_id` della richiesta. Se nessun operatore corrisponde, viene usato un fallback che considera tutti gli operatori.
+  Restringe il set degli operatori a quelli aventi lo stesso `cluster_id` della richiesta. Se nessuno corrisponde, viene usato un fallback che considera tutti gli operatori.
 
-- **`select_best_operator_for_request(request, operators)`**  
-  Utilizza il filtro per cluster e, tra gli operatori pertinenti, seleziona quello che minimizza il `travel_time` e rispetta i vincoli di fattibilità.
+- **`select_best_operator_for_request(request, operators, shift_end)`**  
+  Tra gli operatori pertinenti, seleziona quello che minimizza il travel time e rispetta i vincoli di fattibilità, utilizzando la funzione `is_feasible`.
 
-- **`grs(operators, requests)`**  
-  Funzione principale che:
-  1. Ordina le richieste per il valore α della finestra temporale.
-  2. Per ciascuna richiesta, seleziona l’operatore migliore (usando il filtro per cluster).
-  3. Aggiorna lo stato dell’operatore (riducendo il `work_time`, aggiornando `t0` e `current_patient`).
-  4. Restituisce uno schedule (un dizionario) che mappa ogni operatore alle richieste assegnate.
+- **`grs_time(operators, requests, is_morning=True)`**  
+  La funzione principale che:
+  1. Reinizializza lo stato degli operatori in base al turno da simulare:
+     - **Turno mattutino:** `eo = 420`, `ho = 300`, `shift_end = 720`.
+     - **Turno pomeridiano:** Utilizza il reset (es. `eo = 960`, `ho = 300`) e `shift_end = 1290`.
+  2. Ordina le richieste per l'inizio della finestra temporale (α).
+  3. Per ciascuna richiesta, seleziona l’operatore fattibile (con min travel time) e aggiorna lo stato dell’operatore:
+     - Aggiorna `Lo` con la tupla (richiesta, max(eo + travel, α)).
+     - Aggiorna `wo` aggiungendo il tempo di percorrenza e la durata.
+     - Aggiorna `eo` e ricalcola `ho` come `shift_end - eo`.
+     - Aggiorna il `current_patient` con il paziente della richiesta.
+  4. Restituisce lo schedule (un dizionario {op_id: [richieste assegnate]}) e un dizionario di statistiche che conta il numero totale di richieste, quelle assegnate, non assegnate, e i motivi dei fallimenti (arrival_fail, work_fail).
 
 ---
 
@@ -73,34 +82,18 @@ Il modulo **grs.py** include le seguenti funzioni chiave:
 ### **Modello K-Medoids (in MIPClustering)**
 
 - **Input e Calcolo:**  
-  Viene generato un dataset sintetico (ad es. utilizzando `make_blobs`), e l'algoritmo K-Medoids (implementato in `mip_clustering.py`) viene utilizzato per raggruppare i punti in un numero K di cluster.
+  Viene generato un dataset sintetico (ad es. con `make_blobs`), e l'algoritmo K-Medoids (in `mip_clustering.py`) raggruppa i punti in K cluster, ottimizzando la somma delle distanze (o tempi) dai punti al medoid.
 
-- **Estrazione dei Cluster:**  
-  Il metodo `get_cluster_labels()` estrae per ogni punto un'etichetta che corrisponde all'indice del medoid a cui il punto è stato assegnato.  
-  **Nota:** Questi cluster_id iniziali possono essere numeri sparsi (es. 21, 41, 51) che rappresentano gli indici originali dei medoids.
-
-### **Rimappatura dei Cluster ID**
-
-Per rendere le etichette consecutive (0, 1, 2, ...), è stata implementata la funzione:
-  
-```python
-def remap_cluster_labels(cluster_labels):
-    unique_medoids = sorted(set(cluster_labels))
-    medoid_to_new_id = {medoid: i for i, medoid in enumerate(unique_medoids)}
-    new_cluster_labels = [medoid_to_new_id[cluster] for cluster in cluster_labels]
-    return new_cluster_labels, medoid_to_new_id
-```
-
-Questa funzione crea una mappatura dai vecchi cluster_id (gli indici dei medoids) a etichette consecutive, semplificando l'interpretazione e la gestione degli operatori e delle richieste.
+- **Estrazione e Rimappatura dei Cluster:**  
+  Il metodo `get_cluster_labels()` estrae le etichette, che vengono poi rimappate in valori consecutivi tramite la funzione `remap_cluster_labels`, semplificando l'interpretazione e la gestione degli operatori e delle richieste.
 
 ---
 
 ## 5. Generazione delle Richieste e Modalità di Test
 
-### **Modalità di Generazione delle Richieste**
+### **Generazione delle Richieste**
 
-Per testare il sistema si può utilizzare il file `test_integration.py`, che implementa due modalità:
-
+Il file **test_integration.py** offre due modalità per generare le richieste:
 - **`simple_requests`**  
   Genera richieste con una finestra temporale fissa (ad es. da 7:00 a 13:00, cioè (420, 780)).
 
@@ -109,6 +102,7 @@ Per testare il sistema si può utilizzare il file `test_integration.py`, che imp
   - L'orario di inizio (`alpha`) viene scelto casualmente tra un minimo e un massimo (ad es. tra 420 e 450).
   - L'orario di fine (`beta`) viene scelto casualmente tra `alpha + un offset minimo` (es. 40 minuti) e un massimo (ad es. 780, cioè 13:00).
 
+
 ### **Selezione della Modalità di Test**
 
 Nel file di test, è prevista una variabile booleana (ad esempio `use_random`) nel main che permette, se impostata a `True`, di attivare l'implementazione random (attivata di default). È possibile configurare i valori delle richieste con i parametri:
@@ -116,17 +110,32 @@ Nel file di test, è prevista una variabile booleana (ad esempio `use_random`) n
 - `beta_min_offset=40`: l'orario di fine è almeno 40 min dopo alpha
 - `beta_max=780`: l'orario di fine massimo (13:00, per la mattina)
 
+
+### **Selezione del Turno**
+
+Nel test è possibile specificare se simulare il turno mattutino o pomeridiano tramite un parametro booleano (`is_morning`):
+- **True:** turno mattutino (shift_end = 720).
+- **False:** turno pomeridiano (shift_end = 1290, con reset dello stato degli operatori).
+
 ---
 
-## 6. Test e Validazioni
+## 6. Test e Debug
 
-- **Esecuzione dei Test:**  
-  Il test integra:
-  - La generazione dei nodi tramite `make_blobs`.
-  - L'esecuzione del clustering K-Medoids e la rimappatura dei cluster_id.
-  - La creazione di oggetti Node, Request (con cluster_id) e Operator (assegnando a ciascun operatore un cluster_id basato sul depot).
-  - L'esecuzione del GRS, con il filtro dinamico che restringe la ricerca degli operatori al cluster della richiesta.
+- **Statistiche di Assegnazione:**  
+  Al termine dell'esecuzione del GRS, il sistema restituisce:
+  - **total_requests:** Numero totale di richieste elaborate.
+  - **assigned:** Numero di richieste assegnate.
+  - **not_assigned:** Numero di richieste non assegnate.
+  - **arrival_fail:** Numero di richieste non assegnate per cui l'orario di arrivo non rientrava nella finestra temporale.
+  - **work_fail:** Numero di richieste non assegnate per mancanza di tempo residuo (superamento del turno o tempo insufficiente).
 
-- **Messaggi di Debug:**  
-  La funzione `is_feasible` include stampe di log che aiutano a diagnosticare perché alcune richieste non vengono assegnate (ad esempio, perché l'orario di arrivo supera la finestra temporale).
+---
+
+## 7. Progressi
+
+- **Implementazione Dinamica del Turno:**  
+  Sono presenti sia il turno mattutino che quello pomeridiano, le variabili `eo`, `ho` e `shift_end`, vengono aggiornate dinamicamente.
+
+- **Statistiche Dettagliate:**  
+ Sono presenti statistiche che permettono di capire quanti e quali motivi hanno portato al fallimento dell'assegnazione di alcune richieste.
 
