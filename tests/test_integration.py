@@ -8,7 +8,7 @@ scripts_path = os.path.join(os.path.dirname(__file__), '..', 'scripts')
 sys.path.insert(0, scripts_path)
 
 from operators_requests import Node, Operator, Request
-from grs import grs, compute_travel_time
+from grs import grs_time, compute_travel_time
 from mip_clustering import MIPClustering
 
 def simple_requests(nodes, cluster_labels, durations):
@@ -38,10 +38,10 @@ def random_requests(nodes, cluster_labels, durations, alpha_min=420, alpha_max=4
         requests.append(req)
     return requests
 
-def test_integration(use_random=True):
+def test_integration(use_random=True, is_morning=True):
     # 1. Genera un dataset con make_blobs
-    n_samples = 200
-    n_centers = 5
+    n_samples = 40
+    n_centers = 1
     points, _ = make_blobs(n_samples=n_samples, centers=n_centers, n_features=2, random_state=42)
     
     # 2. Esegue il clustering con il modello K-Medoids
@@ -92,9 +92,13 @@ def test_integration(use_random=True):
     for cluster, medoid_index in assigned_clusters.items():
         op = Operator(id=cluster, home=nodes[medoid_index], cluster_id=cluster)
         operators.append(op)
+
+    print("-------------------------------------------------------------")
+    print(f"TEST CON {n_samples} PAZIENTI E {len(assigned_clusters)} OPERATORI")
+    print("-------------------------------------------------------------\n")
     
-    # 6. Esegui il GRS
-    schedule = grs(operators, requests)
+    # 6. Esegui il GRS - Time, passando il parametro is_morning per scegliere il turno
+    schedule, stats = grs_time(operators, requests, is_morning)
     
     # 7. Visualizza i risultati
     print("\nRISULTATO SCHEDULING:")
@@ -103,9 +107,25 @@ def test_integration(use_random=True):
         for req in req_list:
             print(f"  Richiesta {req.i}: durata {req.duration}, finestra {req.temporal_window}, Cluster: {req.cluster_id}")
 
+    # 8. Visualizza le statistiche
+    print("\nSTATISTICHE:")
+    total_requests = stats['total_requests']
+    assigned = stats['assigned']
+    not_assigned = stats['not_assigned']
+    arrival_fail = stats['arrival_fail']
+    work_fail = stats['work_fail']
+    
+    print(f"Richieste totali: {total_requests}")
+    print(f"Richieste assegnate: {assigned} ({assigned/total_requests*100:.2f}%)")
+    print(f"Richieste non assegnate: {not_assigned} ({not_assigned/total_requests*100:.2f}%)")
+    print(f" - Non assegnate per arrival time non rispettato: {arrival_fail} ({arrival_fail/total_requests*100:.2f}%)")
+    print(f" - Non assegnate per work time non rispettato: {work_fail} ({work_fail/total_requests*100:.2f}%)")
+
+    
 if __name__ == "__main__":
-    # Scegli quale implementazione usare:
-    # Imposta use_random = True per usare random_requests
-    # oppure use_random = False per usare simple_requests
+    # Imposta:
+    # - use_random: True per usare random_requests, False per simple_requests.
+    # - is_morning: True per turno mattutino, False per turno pomeridiano.
     use_random = True
-    test_integration(use_random)
+    is_morning = True  # Modifica a False per simulare il turno pomeridiano
+    test_integration(use_random, is_morning)
