@@ -9,7 +9,7 @@ sys.path.insert(0, scripts_path)
 
 # script che implementa le 4 varianti dell'algoritmo GRS
 # 1. GRS - Time: minimizza gli spostamenti tau
-# 2. GRS - Saturami: minimizza ho, il tempo rimanente prima della fine della sessione di un operatore
+# 2. GRS - Saturami: minimizza ho, il tempo rimanente prima della fine della sessione di un operatore
 # 3. GRS - LasciamiInPace: massimizza ho, il tempo rimanente prima della fine della sessione di un operatore
 # 4. GRS - TradeOff: minimizza wo (la quantità di tempo che ha lavorato un operatore) + tau (gli spostamenti) + ti (durata della richiesta)
 
@@ -17,6 +17,7 @@ sys.path.insert(0, scripts_path)
 from data_loader import operators, requests, patients
 
 import json
+from data_loader import operators, requests, patients  # I dati vengono importati dal modulo data_loader
 
 # Carica la matrice delle distanze dal file JSON
 base_dir = os.path.join(os.path.dirname(__file__), '..', 'mapping')
@@ -35,79 +36,143 @@ def get_distance(id1, id2):
     return distance_matrix.get(key, float("inf"))
 
 
-def grs(variant, operators, requests, patients):
+def set_operator_state_afternoon(operator):
+    """
+    Reimposta lo stato dell'operatore per il turno pomeridiano.
+    Se l'operatore ha lavorato al mattino (flag "worked_morning" == True),
+    il turno pomeridiano inizia alle 18:00 (1080 minuti), altrimenti alle 16:00 (960 minuti).
+    """
+    if operator.get("worked_morning", True):
+        operator["eo_start_afternoon"] = 1080
+        operator["eo"] = 1080
+    else:
+        operator["eo_start_afternoon"] = 960
+        operator["eo"] = 960
+
+    operator["ho"] = 300
+    operator["wo"] = 0
+    operator["Lo"] = []
+
+def set_operator_state_morning(operator):
+    """
+    Reimposta lo stato dell'operatore per il turno mattutino.
+    Il turno mattutino inizia alle 7:00 (420 minuti).
+    """
+    operator["eo"] = 420
+    operator["ho"] = 300
+    operator["wo"] = 0
+    operator["Lo"] = []
+
+def grs(variant, operators, requests, patients, shift_end=720):
     """
     Funzione unica per l'algoritmo GRS che, in base alla variante scelta,
     assegna le richieste agli operatori.
 
     :param variant: Nome della variante dell'algoritmo GRS.
-    :param operators: Lista di operatori.
-    :param requests: Lista di richieste.
-    :param patients: Lista di pazienti.
+    :param operators: Lista di operatori (dizionari).
+    :param requests: Lista di richieste (dizionari).
+    :param patients: Lista di pazienti (dizionari).
     """
 
     assignments = {}
 
+    # Inizializza i campi mancanti per ogni operatore
     for op in operators:
         if "eo" not in op:
-            op["eo"] = 420            # Inizio turno (es. 420 minuti = 7:00 AM)
+            op["eo"] = 420         # Inizio turno (420 minuti = 7:00 AM)
         if "ho" not in op:
-            op["ho"] = 300            # Tempo residuo della sessione (300 minuti)
+            op["ho"] = 300      # Tempo residuo della sessione (300 minuti)
         if "wo" not in op:
-            op["wo"] = 0              # Tempo già lavorato, inizialmente 0
+            op["wo"] = 0           # Tempo già lavorato, inizialmente 0
         if "Lo" not in op:
-            op["Lo"] = []             # Lista delle richieste assegnate
-        if "current_patient" not in op:
-            op["current_patient"] = {"id": op["id"], "lat": op["lat"], "lon": op["lon"]}
+            op["Lo"] = []          # Lista delle richieste assegnate
+        
+    
 
     # Ordina le richieste per il tempo minimo di inizio (α_i)
-    sorted_requests = sorted(requests, key=lambda r: r["min_time_begin"])
+    sorted_requests = sorted(requests, key=lambda r: parse_time_to_minutes(r["min_time_begin"]))
 
     # Ciclo greedy: per ogni richiesta, seleziona l'operatore migliore in base al costo
     for req in sorted_requests:
+        
+        alpha_i = parse_time_to_minutes(req["min_time_begin"])
+        beta_i = parse_time_to_minutes(req["max_time_begin"])
+        t_i = req["duration"]
+
         best_op = None
         best_cost = float("inf")
 
+    
         for op in operators:
-            # Calcola il tempo di spostamento dalla posizione corrente dell'operatore al paziente della richiesta
             travel_time = compute_travel_time(op, req, patients)
-            start_time = op["eo"] + travel_time
-            finish_time = start_time + req["duration"]
+            hours_if_assigned = op["weekly_worked"] + (t_i + travel_time)
+            # Salta se supera max_weekly_hours
+            if hours_if_assigned > op["max_weekly_hours"]:
+                continue
 
-            # Verifica se l'operatore può completare la richiesta entro il tempo disponibile
-            if finish_time <= op["eo"] + op["ho"]:
-                cost = compute_cost(variant, op, req, travel_time)
+            # Controlla i vincoli (e_o + travel_time <= beta_i, t_i <= h_o)
+            if op["eo"] + travel_time <= beta_i and t_i <= op["ho"]:
+                cost = compute_cost(variant, op, t_i, travel_time)
                 if cost < best_cost:
                     best_cost = cost
                     best_op = op
 
-        # Se troviamo un operatore adatto, assegniamo la richiesta e aggiorniamo le variabili
+         # 4) Se ho trovato un operatore fattibile
         if best_op is not None:
             travel_time = compute_travel_time(best_op, req, patients)
-            best_op["eo"] += travel_time + req["duration"]    # e_o = e_o + τ + t_i
-            best_op["wo"] += req["duration"]                  # w_o = w_o + t_i
-            best_op["ho"] -= req["duration"]                  # h_o = h_o - t_i
+            alpha_i = req["min_time_begin"]
+            # e_o = max(e_o + tau, alpha_i) + t_i
+            arrival_time = best_op["eo"] + travel_time
+            begin_service = max(arrival_time, alpha_i)
+            finish_time = begin_service + t_i
 
-            # Aggiorna la posizione corrente dell'operatore cercando il paziente corrispondente
-            patient = next((p for p in patients if p["id"] == req["project_id"]), None)
-            if patient is not None:
-                best_op["current_patient"] = patient
+            # Aggiorno w_o e e_o
+            best_op["wo"] += (t_i + travel_time)  # w_o = w_o + t_i + tau
+            best_op["eo"] = finish_time  # e_o = finish_time
 
-            best_op["Lo"].append(req["id"])                   # aggiunge la richiesta alla lista
+            # h_o = shift_end - e_o
+            best_op["ho"] = shift_end - best_op["eo"]
+
+            # p_o = p_i
+            # Se hai la lista di pazienti e vuoi aggiornare lat/lon, puoi farlo qui
+            best_op["current_patient"] = {"id": req["project_id"]}
+
+            # Aggiungo la richiesta alla lista
+            best_op["Lo"].append(req["id"])
             assignments.setdefault(best_op["id"], []).append(req["id"])
 
 
     return assignments
 
 
+
+
+
 def is_operator_available(op, req):
     return True
+
+
+def parse_time_to_minutes(time_value):
+    """
+    Converte un orario espresso nel formato H.MM (es. "15.55" per 15:55)
+    in minuti. Ad esempio: "15.55" → 15*60 + 55 = 955 minuti.
+    Se il valore non contiene il punto, lo interpreta come ore e lo converte in minuti.
+    """
+    s = str(time_value)
+    if '.' in s:
+        parts = s.split('.')
+        hour = int(parts[0])
+        minute = int(parts[1])
+        return hour * 60 + minute
+    else:
+        return int(float(s) * 60)
 
 
 def compute_travel_time(op, req, patients):
     """
     Calcola il tempo di spostamento (tau) utilizzando la matrice delle distanze.
     Si usano gli id globali: l'id dell'operatore e l'id del paziente.
+    Poiché lavoriamo in minuti, non converto il valore.
     """
     patient = next((p for p in patients if p["id"] == req["project_id"]), None)
     if patient is None:
@@ -116,32 +181,25 @@ def compute_travel_time(op, req, patients):
 
 
 
-def compute_cost(variant, op, req, travel_time):
+def compute_cost(variant, op, t_i, tau):
     """
-    Calcola il "costo" di assegnare la richiesta a un operatore, 
-    in base alla variante scelta.
+    Calcola il costo in base alla variante.
+    - Time: minimizza tau
+    - Saturami: minimizza ho_final => ho_final = op["ho"] - t_i => cost = ho_final
+               (più piccolo => preferito => saturazione)
+    - LasciamiInPace: massimizza ho_final => cost = -ho_final
+    - TradeOff: minimizza w_o + tau + t_i
     """
     if variant == "Time":
-        # Minimizza il tempo di spostamento (travel_time)
-        return travel_time
-
+        return tau
     elif variant == "Saturami":
-        # Minimizza ho dopo l'assegnazione => ho_final = op["ho"] - req["duration"]
-        # min cost => cost = -ho_final
-        ho_final = op["ho"] - req["duration"]
-        return -ho_final
-
-    elif variant == "LasciamiInPace":
-        # Massimizza ho => cost = ho_final (oppure -ho_final invertendo la logica)
-        ho_final = op["ho"] - req["duration"]
+        ho_final = op["ho"] - t_i
         return ho_final
-
+    elif variant == "LasciamiInPace":
+        ho_final = op["ho"] - t_i
+        return -ho_final
     elif variant == "TradeOff":
-        # Minimizza (wo + travel_time + ti)
-        wo = op["wo"]
-        ti = req["duration"]
-        return wo + travel_time + ti
-
+        return op["wo"] + tau + t_i
     else:
         raise ValueError(f"Variante {variant} non valida")
 
@@ -152,34 +210,147 @@ def update_operator(op, req, patients):
       - Diminuisce il tempo disponibile (max_weekly_hours) in base alla durata della richiesta.
       - Aggiorna la posizione dell'operatore alla posizione del paziente.
     """
-    op["max_weekly_hours"] -= req["duration"]
+    op["max_weekly_hours"] -= op["wo"]
     patient = next((p for p in patients if p["id"] == req["project_id"]), None)
     if patient:
         op["lat"] = patient["lat"]
         op["lon"] = patient["lon"]
+
 
 def display_assignments(assignments):
     data = []
     for op_id, req_list in assignments.items():
         data.append({
             "Operator ID": op_id,
+            "Name": next(op["name"] for op in operators if op["id"] == op_id),
+            "Surname": next(op["surname"] for op in operators if op["id"] == op_id),
             "Num Requests": len(req_list),
             "Request IDs": ", ".join(req_list)
         })
     df = pd.DataFrame(data)
     return df
 
+
+def run_grs_for_week(variant, operators, requests, patients):
+    """
+    Esegue il GRS per 7 giorni, suddividendo in turni mattutino/pomeridiano
+    e restituisce un dizionario con tutte le assegnazioni, oltre a lasciare
+    nei campi degli operatori i dettagli su quanti minuti hanno lavorato
+    e quali richieste hanno preso nei turni mattina/pomeriggio.
+    """
+    all_assignments = {}
+
+    # Inizializza eventuali campi nei singoli operatori
+    for op in operators:
+        op["worked_morning"] = False
+        op["weekly_worked"] = 0  # minuti totali nella settimana
+        op["morning_requests"] = []
+        op["afternoon_requests"] = []
+        op["morning_minutes"] = 0
+        op["afternoon_minutes"] = 0
+
+    for day in range(7):
+        # Filtra le richieste del giorno corrente
+        day_requests = [r for r in requests if r["day"] == day]
+
+        # ------ Turno mattutino ------
+        for op in operators:
+            set_operator_state_morning(op)
+            
+        morning_requests = [r for r in day_requests if parse_time_to_minutes(r["min_time_begin"]) < 720]
+
+        assignments_morning = grs(variant, operators, morning_requests, patients, shift_end=720)
+
+        for op_id, req_ids in assignments_morning.items():
+            # Indica che questo operatore ha lavorato al mattino
+            for op in operators:
+                if op["id"] == op_id:
+                    op["worked_morning"] = True
+                    # Aggiungi le richieste mattutine
+                    op["morning_requests"].extend(req_ids)
+            # Salva anche in all_assignments
+            all_assignments.setdefault(op_id, []).extend(req_ids)
+
+        # Ora accumuliamo i minuti effettivi lavorati al mattino:
+        # Folium di “quanto”? Nel GRS aggiorniamo op["wo"] e op["eo"] ma possiamo calcolare la differenza
+        # tra 420 (inizio alle 7) e l’ultimo e_o usato.
+        for op in operators:
+            # Mattina = op["eo"] - 420 (se l'operatore ha effettivamente svolto assegnazioni)
+            # ma non superare 300 (5 ore max).
+            if op["eo"] > 420:  
+                used_minutes = min(op["eo"] - 420, 300)
+                op["morning_minutes"] += used_minutes
+                op["weekly_worked"] += used_minutes
+
+        # ------ Turno pomeridiano ------
+        afternoon_requests = [r for r in day_requests if parse_time_to_minutes(r["min_time_begin"]) >= 720]
+
+        for op in operators:
+            set_operator_state_afternoon(op)
+
+        assignments_afternoon = grs(variant, operators, afternoon_requests, patients, shift_end=1290)
+
+        for op_id, req_ids in assignments_afternoon.items():
+            # Aggiungi le richieste pomeridiane
+            for op in operators:
+                if op["id"] == op_id:
+                    op["afternoon_requests"].extend(req_ids)
+            # Accumula le assegnazioni anche nel dizionario cumulativo
+            all_assignments.setdefault(op_id, []).extend(req_ids)
+
+        # Accumula i minuti effettivi lavorati al pomeriggio
+        for op in operators:
+            # Pomeriggio ipotizziamo inizi alle 13:00 (780) o 16:00/18:00
+            # (dipende dal set_operator_state_afternoon). Usa op["eo"] finale.
+            # Se e_o parte da 960 o 1080 e va fino a un massimo di 1290.
+            # min() evita che superi 1290 - e_o_iniz (max 330 minuti)
+            if op["eo"] > op["eo_start_afternoon"]:
+                used_minutes = min(op["eo"] - op["eo_start_afternoon"], 330)
+                op["afternoon_minutes"] += used_minutes
+                op["weekly_worked"] += used_minutes
+
+    return all_assignments
+
+
+def display_assignments_with_shifts(operators):
+    """
+    Costruisce un DataFrame che mostra, per ciascun operatore:
+    - Quante richieste ha fatto al mattino
+    - Quante richieste ha fatto al pomeriggio
+    - Il totale di minuti (o ore) lavorati in settimana
+    - L'elenco di ID richieste mattina/pomeriggio
+    """
+    data = []
+    for op in operators:
+        data.append({
+            "Operator ID": op["id"],
+            "Name": op["name"],
+            "Surname": op["surname"],
+            "Morning Requests": ", ".join(op["morning_requests"]),
+            "Afternoon Requests": ", ".join(op["afternoon_requests"]),
+            "Num Morning": len(op["morning_requests"]),
+            "Num Afternoon": len(op["afternoon_requests"]),
+            "Morning Hours": round(op["morning_minutes"] / 60, 2),
+            "Afternoon Hours": round(op["afternoon_minutes"] / 60, 2),
+            "Total Hours": round(op["weekly_worked"] / 60, 2)
+        })
+    return pd.DataFrame(data)
+
+
+
 variants = ["Time", "Saturami", "LasciamiInPace", "TradeOff"]
 
 for variant in variants:
-    # print(f"\n--- Variante: {variant} ---")
-    assignments = grs(variant, operators, requests, patients)
-    df_assignments = display_assignments(assignments)
-    # print(df_assignments)
-    # Salva il DataFrame in un file CSV con il nome che include la variante
+   
+     # Esegui GRS completo su 7 giorni
+    all_assignments = run_grs_for_week(variant, operators, requests, patients)
     
+    # Genera un DataFrame con i dettagli di *tutti* i turni
+    df = display_assignments_with_shifts(operators)
+
+    # Salva come CSV
     results_dir = os.path.join(os.path.dirname(__file__), '..', 'variants_results')
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-    df_assignments.to_csv(os.path.join(results_dir, f"assignments_{variant}.csv"), index=False)
-    print(f"File 'assignments_{variant}.csv' salvato con successo.")
+    os.makedirs(results_dir, exist_ok=True)
+    out_csv = os.path.join(results_dir, f"assignments_{variant}.csv")
+    df.to_csv(out_csv, index=False)
+    print(f"File '{out_csv}' salvato.")
