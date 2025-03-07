@@ -40,8 +40,8 @@ def random_requests(nodes, cluster_labels, durations, alpha_min=420, alpha_max=4
 
 def test_integration(use_random=True, is_morning=True):
     # 1. Genera un dataset con make_blobs
-    n_samples = 40
-    n_centers = 1
+    n_samples = 400
+    n_centers = 45
     points, _ = make_blobs(n_samples=n_samples, centers=n_centers, n_features=2, random_state=42)
     
     # 2. Esegue il clustering con il modello K-Medoids
