@@ -1,4 +1,4 @@
-# Script utilizzato per implementare l'algoritmo 1 GRS - Time
+# Script utilizzato per implementare i 4 algoritmi  GRS, attualmente implementato solo il primo, grs-time
 
 import datetime, math
 from operators_requests import Operator, Request, Node
@@ -110,6 +110,18 @@ def select_best_operator_for_request(request: Request, operators: List[Operator]
     best_operator, _ = min(feasible_ops, key=lambda x: x[1])
     return best_operator
 
+def group_requests_by_cluster(requests):
+    from collections import defaultdict
+    cluster_map = defaultdict(list)
+    for req in requests:
+        cluster_map[req.cluster_id].append(req)
+    return cluster_map
+
+def compute_needed_operators(cluster_requests, max_work_per_op):
+    total_duration = sum(r.duration for r in cluster_requests)
+    # esempio: ogni operatore ha 300 minuti totali disponibili
+    return math.ceil(total_duration / max_work_per_op)
+
 
 # funzione per eseguire il GRS
 def grs_time(operators: List[Operator],
@@ -151,6 +163,33 @@ def grs_time(operators: List[Operator],
 
     # (1) Ordina le richieste per αᵢ
     sorted_requests = sorted(requests, key=lambda r: r.temporal_window[0])
+
+    # Raggruppa le richieste per cluster
+    cluster_requests = group_requests_by_cluster(sorted_requests)
+    max_work_time = 300  
+
+    # Assegna nuovi id agli operatori (supponendo che Operator.id sia numerico)
+    next_operator_id = max(op.id for op in operators) + 1 if operators else 1
+
+    # Per ogni cluster, verifica se sono necessari operatori in più
+    for cluster_id, reqs in cluster_requests.items():
+        # Seleziona gli operatori già assegnati a questo cluster
+        current_ops = [op for op in operators if op.cluster_id == cluster_id]
+        needed_ops = compute_needed_operators(reqs, max_work_time)
+        extra_needed = needed_ops - len(current_ops)
+        
+        for _ in range(extra_needed):
+            # Il parametro 'home' va impostato opportunamente. Se ci sono operatori esistenti,
+            # ne assumiamo il valore di home, altrimenti impostarlo "a mano".
+            home = current_ops[0].home if current_ops else Node(coordinates=(0, 0))
+            new_op = Operator(id=next_operator_id, home=home, cluster_id=cluster_id)
+            if is_morning:
+                set_operator_state_morning(new_op)
+            else:
+                set_operator_state_afternoon(new_op)
+            operators.append(new_op)
+            # Aggiungi il nuovo operatore allo schedule iniziale
+            next_operator_id += 1
 
     # (2) Inizializza uno schedule vuoto per ciascun operatore
     schedule = {op.id: [] for op in operators}
