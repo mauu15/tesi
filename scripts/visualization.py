@@ -13,10 +13,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Gestione cartelle: le immagini saranno salvate in BASE_DIR/imgs
 output_dir = os.path.join(BASE_DIR, "imgs")
 kmedoids_dir = os.path.join(output_dir, "kmedoids")
-minimax_dir = os.path.join(output_dir, "minimax")
 
 # Crea le cartelle se non esistono
-for folder in [output_dir, kmedoids_dir, minimax_dir]:
+for folder in [output_dir, kmedoids_dir]:
     os.makedirs(folder, exist_ok=True)
 
 def plot_clusters(points, clusters, medoid_indices=None, filename=None, output_dir=None):
