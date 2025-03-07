@@ -9,8 +9,8 @@ from visualization import plot_clusters, kmedoids_dir, minimax_dir, BASE_DIR
 # Generazione dei dati sintetici
 # -------------------------------
 
-n_samples = 400 # Numero di punti da generare
-n_clusters = 5 # Numero di cluster
+n_samples = 300 # Numero di punti da generare
+n_clusters = 4 # Numero di cluster
 
 # Dati
 # n_features=2: due dimensioni
