@@ -120,7 +120,9 @@ def grs(variant, operators, requests, patients, shift_end=720):
          # 4) Se ho trovato un operatore fattibile
         if best_op is not None:
             travel_time = compute_travel_time(best_op, req, patients)
+
             alpha_i = req["min_time_begin"]
+
             # e_o = max(e_o + tau, alpha_i) + t_i
             arrival_time = best_op["eo"] + travel_time
             begin_service = max(arrival_time, alpha_i)
@@ -141,11 +143,10 @@ def grs(variant, operators, requests, patients, shift_end=720):
             best_op["Lo"].append(req["id"])
             assignments.setdefault(best_op["id"], []).append(req["id"])
 
+            best_op["weekly_worked"] += (t_i + travel_time)
+
 
     return assignments
-
-
-
 
 
 def is_operator_available(op, req):
@@ -275,7 +276,7 @@ def run_grs_for_week(variant, operators, requests, patients):
             if op["eo"] > 420:  
                 used_minutes = min(op["eo"] - 420, 300)
                 op["morning_minutes"] += used_minutes
-                op["weekly_worked"] += used_minutes
+                # op["weekly_worked"] += used_minutes
 
         # ------ Turno pomeridiano ------
         afternoon_requests = [r for r in day_requests if parse_time_to_minutes(r["min_time_begin"]) >= 720]
@@ -300,7 +301,7 @@ def run_grs_for_week(variant, operators, requests, patients):
             if op["eo"] > op["eo_start_afternoon"]:
                 used_minutes = min(op["eo"] - op["eo_start_afternoon"], 300)
                 op["afternoon_minutes"] += used_minutes
-                op["weekly_worked"] += used_minutes
+                # op["weekly_worked"] += used_minutes
 
     return all_assignments
 
