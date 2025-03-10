@@ -235,15 +235,15 @@ def run_grs_for_week(variant, operators, requests, patients):
     """
     Esegue il GRS per 7 giorni, suddividendo in turni mattutino/pomeridiano
     e restituisce un dizionario con tutte le assegnazioni, oltre a lasciare
-    nei campi degli operatori i dettagli su quanti minuti hanno lavorato
+    nei campi degli operatori i dettagli su quanto hanno lavorato
     e quali richieste hanno preso nei turni mattina/pomeriggio.
     """
     all_assignments = {}
 
-    # Inizializza eventuali campi nei singoli operatori
+
     for op in operators:
         op["worked_morning"] = False
-        op["weekly_worked"] = 0  # minuti totali nella settimana
+        op["weekly_worked"] = 0  
         op["morning_requests"] = []
         op["afternoon_requests"] = []
         op["morning_minutes"] = 0
@@ -266,17 +266,12 @@ def run_grs_for_week(variant, operators, requests, patients):
             for op in operators:
                 if op["id"] == op_id:
                     op["worked_morning"] = True
-                    # Aggiungi le richieste mattutine
                     op["morning_requests"].extend(req_ids)
-            # Salva anche in all_assignments
+
             all_assignments.setdefault(op_id, []).extend(req_ids)
 
-        # Ora accumuliamo i minuti effettivi lavorati al mattino:
-        # Folium di “quanto”? Nel GRS aggiorniamo op["wo"] e op["eo"] ma possiamo calcolare la differenza
-        # tra 420 (inizio alle 7) e l’ultimo e_o usato.
+        # Accumula i minuti effettivi lavorati al mattino, fino a un massimo di 300
         for op in operators:
-            # Mattina = op["eo"] - 420 (se l'operatore ha effettivamente svolto assegnazioni)
-            # ma non superare 300 (5 ore max).
             if op["eo"] > 420:  
                 used_minutes = min(op["eo"] - 420, 300)
                 op["morning_minutes"] += used_minutes
@@ -291,21 +286,19 @@ def run_grs_for_week(variant, operators, requests, patients):
         assignments_afternoon = grs(variant, operators, afternoon_requests, patients, shift_end=1290)
 
         for op_id, req_ids in assignments_afternoon.items():
-            # Aggiungi le richieste pomeridiane
             for op in operators:
                 if op["id"] == op_id:
                     op["afternoon_requests"].extend(req_ids)
-            # Accumula le assegnazioni anche nel dizionario cumulativo
             all_assignments.setdefault(op_id, []).extend(req_ids)
 
-        # Accumula i minuti effettivi lavorati al pomeriggio
+        # Accumula i minuti effettivi lavorati al pomeriggio, 
         for op in operators:
-            # Pomeriggio ipotizziamo inizi alle 13:00 (780) o 16:00/18:00
-            # (dipende dal set_operator_state_afternoon). Usa op["eo"] finale.
+            # Pomeriggio inizia alle 16:00/18:00, dipende se ha lavorato al mattino o no
+            # (viene controllato dal set_operator_state_afternoon). Usa op["eo"] finale.
             # Se e_o parte da 960 o 1080 e va fino a un massimo di 1290.
-            # min() evita che superi 1290 - e_o_iniz (max 330 minuti)
+            # min() evita che superi 1290 - e_o_iniz (max 300 minuti)
             if op["eo"] > op["eo_start_afternoon"]:
-                used_minutes = min(op["eo"] - op["eo_start_afternoon"], 330)
+                used_minutes = min(op["eo"] - op["eo_start_afternoon"], 300)
                 op["afternoon_minutes"] += used_minutes
                 op["weekly_worked"] += used_minutes
 
@@ -332,7 +325,8 @@ def display_assignments_with_shifts(operators):
             "Num Afternoon": len(op["afternoon_requests"]),
             "Morning Hours": round(op["morning_minutes"] / 60, 2),
             "Afternoon Hours": round(op["afternoon_minutes"] / 60, 2),
-            "Total Hours": round(op["weekly_worked"] / 60, 2)
+            "Total Hours": round(op["weekly_worked"] / 60, 2),
+            "Max Weekly Hours": round(op["max_weekly_hours"] / 60, 2)
         })
     return pd.DataFrame(data)
 
@@ -342,10 +336,10 @@ variants = ["Time", "Saturami", "LasciamiInPace", "TradeOff"]
 
 for variant in variants:
    
-     # Esegui GRS completo su 7 giorni
+     # Esegue GRS completo su 7 giorni
     all_assignments = run_grs_for_week(variant, operators, requests, patients)
     
-    # Genera un DataFrame con i dettagli di *tutti* i turni
+    # Genera un DataFrame con i dettagli di tutti i turni
     df = display_assignments_with_shifts(operators)
 
     # Salva come CSV
