@@ -19,10 +19,12 @@ def read_operators(file_path):
                 "id": row["id"],
                 "name": row["name"],
                 "surname": row["surname"],
-                "weekly_worked_hours": 0,
-                "max_weekly_hours": int(float(row["max_weekly_hours"]) * 60) if row["max_weekly_hours"] else 0,
+                "weekly_worked": 0, #wo, in minutes
+                "max_weekly_minutes": int(float(row["max_weekly_hours"]) * 60) if row["max_weekly_hours"] else 0, # H_o
                 "lat": float(row["lat"]) if row["lat"] else 0.0,
-                "lon": float(row["lon"]) if row["lon"] else 0.0
+                "lon": float(row["lon"]) if row["lon"] else 0.0,
+                "hourly_rate": float(row["hourly_rate"]) if row["hourly_rate"] else 0.0,
+                "current_patient_id": None,
             }
             operators.append(op)
     return operators
@@ -75,13 +77,13 @@ def read_patients(file_path):
             patients.append(p)
     return patients
 
-# Esempio di percorso base se i file sono nella cartella "csv"
+
 base_dir = os.path.join(os.path.dirname(__file__), '..', 'csv')
 OPERATORS_FILE = os.path.join(base_dir, "operators.csv")
 REQUESTS_FILE = os.path.join(base_dir, "requests.csv")
 PATIENTS_FILE = os.path.join(base_dir, "patients.csv")
 
-# Leggi i dati (queste chiamate saranno eseguite quando importerai il modulo)
+
 operators = read_operators(OPERATORS_FILE)
 requests = read_requests(REQUESTS_FILE)
 patients = read_patients(PATIENTS_FILE)
