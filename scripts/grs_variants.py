@@ -27,7 +27,7 @@ def get_distance(id1, id2):
     key = (min(a, b), max(a, b))
     return distance_matrix.get(key, float("inf"))
 
-# MATTINA
+# POMERIGGIO
 def set_operator_state_afternoon(operator):
     """
     Reimposta lo stato dell'operatore per il turno pomeridiano.
@@ -42,12 +42,11 @@ def set_operator_state_afternoon(operator):
         operator["eo"] = 960
 
     operator["ho"] = 300
-    operator["wo"] = 0
     operator["Lo"] = []
 
     shift_end = 1320 # 22:00 with 30 minutes of overtime
 
-# POMERIGGIO
+# MATTINA
 def set_operator_state_morning(operator):
     """
     Reimposta lo stato dell'operatore per il turno mattutino.
@@ -55,9 +54,8 @@ def set_operator_state_morning(operator):
     """
     operator["eo"] = 420
     operator["ho"] = 330
-    operator["wo"] = 0
+    operator["weekly_worked"] = 0 # wo
     operator["Lo"] = [] # lista delle richieste assegnate all'operatore
-    operator["x_oi"] = 0 # 1 se assegnando la richiesta i all'operatore o, questo va in overtime
 
     shift_end = 750 # 12:30 with 30 minutes of overtime
 
@@ -102,13 +100,13 @@ def grs(variant, operators, requests, patients, shift_end):
 
 
             # Condizione 1: l'orario di inizio (eo) più il travel time non supera max_time_begin
-            if op["eo"] + travel_time > req["max_time_begin"]:
+            if op["eo"] + travel_time <= req["max_time_begin"]:
                 continue
 
             # Condizione 2: il tempo totale richiesto (travel_time + durata della visita + eventuale waiting)
             # deve essere minore o uguale al tempo residuo (ho) dell'operatore.
             waiting_time = max(req["min_time_begin"] - op["eo"] - travel_time, 0)
-            if travel_time + req["duration"] + waiting_time > op["ho"]:
+            if travel_time + req["duration"] + waiting_time <= op["ho"]:
                 continue
             
             f_oi = compute_f_oi(op, req)
@@ -148,9 +146,9 @@ def grs(variant, operators, requests, patients, shift_end):
             best_op["Lo"].append(req["id"], b_i) # Lo = Lo U (i,b_i)
             assignments.setdefault(best_op["id"], []).append(req["id"])
 
-            req["b_i"] = b_i # per analisi successive?
+            req["b_i"] = b_i # analisi successive?
 
-    return assignments
+    return assignments 
 
 
 def compute_f_oi(operator, request, theta=0.37):
@@ -159,15 +157,15 @@ def compute_f_oi(operator, request, theta=0.37):
 
     f_oi è definito come:
          f_oi = theta * travel_time + overtime_penalty   se l'assegnazione porta in overtime (x_oi = 1)
-                0                                        altrimenti
+                theta * travel_time                      altrimenti
 
-    Dove overtime_penalty si calcola come:
-       - Se operator.w_o < operator.H_o: overtime_minutes = operator.w_o + request.duration + travel_time - operator.H_o
-       - Se operator.w_o >= operator.H_o: overtime_minutes = request.duration + travel_time
+    overtime_penalty viene calcolata così:
+       - Se operator.w_o < operator.H_o: overtime_minutes = operator.w_o - operator.H_o + request.duration + travel_time 
+       - Se operator.w_o >= operator.H_o: overtime_minutes = 0 + request.duration + travel_time
 
     Parametri:
        operator: oggetto Operator con attributi weekly_worked (w_o, tempo già lavorato), max_weekly_minutes (H_o, limite massimo in minuti),
-                 C_o (costo al minuto) e current_patient_id (posizione corrente).
+                 C_o (costo al minuto dell'operatore) e current_patient_id (posizione corrente).
        request: oggetto Request con attributo duration e project_id (nodo del paziente).
        theta: coefficiente relativo al costo di spostamento (rimborso per il tempo di viaggio).
 
@@ -175,11 +173,11 @@ def compute_f_oi(operator, request, theta=0.37):
        f_oi: valore del costo extra per l'assegnazione della richiesta, che include il costo di spostamento e
              il costo overtime, se applicabile.
     """
-    # Calcola il tempo di spostamento tra la posizione corrente dell'operatore e il paziente della richiesta
+    # Calcolo il tempo di spostamento tra la posizione corrente dell'operatore e il paziente della richiesta
     travel_time = compute_travel_time(operator.current_patient_id, request.project_id)
     service_time = request.duration
 
-    # Verifica se assegnare la richiesta porta l'operatore in overtime
+    # Verifico se assegnare la richiesta porta l'operatore in overtime
     if operator.weekly_worked + service_time + travel_time > operator.max_weekly_minutes:
         # x_oi = 1: overtime attivo
         if operator.weekly_worked < operator.max_weekly_minutes:
@@ -199,10 +197,6 @@ def compute_f_oi(operator, request, theta=0.37):
     f_oi = theta * travel_time + overtime_penalty
 
     return f_oi
-
-
-def is_operator_available(op, req):
-    return True
 
 
 def parse_time_to_minutes(time_value):
@@ -233,7 +227,7 @@ def compute_travel_time(op, req, patients):
     
     if op["current_patient_id"] is None:
         # Prima richiesta: distanza da casa dell'operatore al paziente
-        operator_id_for_distance = op["id"] + 248
+        operator_id_for_distance = op["id"] + 248 # agg. variabile numero pazienti
     else:
         # Richieste successive: distanza dal paziente precedente al paziente corrente
         operator_id_for_distance = op["current_patient_id"]
