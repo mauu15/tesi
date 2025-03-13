@@ -16,7 +16,7 @@ def read_operators(file_path):
         reader = csv.DictReader(f)
         for row in reader:
             op = {
-                "id": row["id"],
+                "id": int(row["id"]),
                 "name": row["name"],
                 "surname": row["surname"],
                 "weekly_worked": 0, #wo, in minutes
@@ -46,8 +46,8 @@ def read_requests(file_path):
         reader = csv.DictReader(f)
         for row in reader:
             req = {
-                "id": row["id"],
-                "project_id": row["project_id"],
+                "id": int(row["id"]),
+                "project_id": int(row["project_id"]),
                 "day": int(row["day"]) if row["day"] else None,
                 "n_operators_required": int(row["n_operators_required"]) if row["n_operators_required"] else float("inf"),
                 "duration": int(float(row["duration"])) if row["duration"] else 0,
@@ -70,7 +70,7 @@ def read_patients(file_path):
         reader = csv.DictReader(f)
         for row in reader:
             p = {
-                "id": row["id"],
+                "id": int(row["id"]),
                 "lat": float(row["lat"]) if row["lat"] else 0.0,
                 "lon": float(row["lon"]) if row["lon"] else 0.0
             }
