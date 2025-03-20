@@ -19,8 +19,27 @@ for folder in [output_dir, kmedoids_dir]:
     os.makedirs(folder, exist_ok=True)
 
 def plot_clusters(points, clusters, medoid_indices=None, filename=None, output_dir=None):
+    """
+    Plotta i punti in un grafico 2D colorati in base al cluster di appartenenza.
+
+    Parameters
+    ----------
+    points : np.ndarray
+        Array di shape (n_samples, 2) contenente le coordinate dei punti.
+    clusters : dict
+        Dizionario contenente gli indici dei punti per ogni cluster.
+    medoid_indices : list or dict, optional
+        Lista di indici dei medoidi. Se è un dizionario, i medoidi saranno ordinati
+        in base alle chiavi.
+    filename : str, optional
+        Nome del file in cui salvare l'immagine.
+    output_dir : str, optional
+        Percorso della cartella in cui salvare l'immagine.
+
+    """
     plt.figure(figsize=(8, 6))
-    
+
+
     # Creazione dell'array di etichette per ogni punto
     labels = np.empty(points.shape[0], dtype=int)
     for cluster_id, indices in clusters.items():
@@ -65,17 +84,12 @@ def plot_clusters(points, clusters, medoid_indices=None, filename=None, output_d
         handler_map={tuple: HandlerTuple(ndivide=len(cluster_handles))}
     )
     
+    plt.show()
+
     if filename is not None and output_dir is not None:
         filepath = os.path.join(output_dir, filename)
         plt.savefig(filepath, dpi=300)
         print(f"Immagine salvata in: {filepath}")
     
-    plt.close()
 
-# Piccolo main per testare la visualizzazione
-if __name__ == "__main__":
-    np.random.seed(42)
-    points = np.random.rand(50, 2) * 100  # 50 punti in uno spazio 2D
-    clusters = {0: list(range(25)), 1: list(range(25, 50))}
-    medoid_indices = [12, 37]
-    plot_clusters(points, clusters, medoid_indices=medoid_indices, filename="cluster.png", output_dir=output_dir)
+    plt.close()
