@@ -19,12 +19,14 @@ def read_operators(file_path):
                 "id": int(row["id"]),
                 "name": row["name"],
                 "surname": row["surname"],
-                "weekly_worked": 0, #wo, in minutes
-                "max_weekly_minutes": int(float(row["max_weekly_hours"]) * 60) if row["max_weekly_hours"] else 0, # H_o
+                "wo": 0, #wo, in minutes
+                "Ho": int(float(row["max_weekly_hours"]) * 60) if row["max_weekly_hours"] else 0, # H_o
                 "lat": float(row["lat"]) if row["lat"] else 0.0,
                 "lon": float(row["lon"]) if row["lon"] else 0.0,
                 "hourly_rate": float(row["hourly_rate"]) if row["hourly_rate"] else 0.0,
                 "current_patient_id": None,
+                "do": 0, #do, in minutes
+                "priority": 0
             }
             operators.append(op)
     return operators
@@ -51,8 +53,8 @@ def read_requests(file_path):
                 "day": int(row["day"]) if row["day"] else None,
                 "n_operators_required": int(row["n_operators_required"]) if row["n_operators_required"] else float("inf"),
                 "duration": int(float(row["duration"])) if row["duration"] else 0,
-                "min_time_begin": int(float(row["min_time_begin"])) if row["min_time_begin"] else 0,
-                "max_time_begin": int(float(row["max_time_begin"])) if row["max_time_begin"] else 0
+                "min_time_begin": row["min_time_begin"] if row["min_time_begin"] else "0",
+                "max_time_begin": row["max_time_begin"] if row["max_time_begin"] else "0",
             }
             requests.append(req)
     return requests
