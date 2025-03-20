@@ -3,4 +3,6 @@ mapping/
 csv/
 variants_results/
 scripts/m_o.py
+scripts/grs_variants_old.py
+ElementOfStatisticalLearning.pdf
 results/
