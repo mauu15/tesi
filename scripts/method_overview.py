@@ -407,14 +407,15 @@ def method_overview(
             # print("[DEBUG] Stato degli operatori prima del report:")
             # for op in operators:
                 # print(f"Operatore {op['id']} - global_assignments: {op['global_assignments']}, Lo: {op.get('Lo')}")
+            total_cost = sum(cost_ds.values())
             global_stats_df = display_global_statistics(operators)
             assignments_df = display_assignments_with_shifts(operators)
-            #save_statistics("TradeOff", d_i, s, best_k, cost_ds, best_cost_for_k, global_stats_df, assignments_df)
+            save_statistics("TradeOff", d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=global_stats_df, assignments_df=assignments_df)
             all_assignments[(d_i, s)] = best_assignment
 
 
     # Calcolo del costo totale
-    total_cost = sum(cost_ds.values())
+    
 
     
     # create_directed_graph_of_schedule(...)
@@ -433,7 +434,11 @@ def method_overview(
 def main():
     
     tau = {}
-    json_path = "../mapping/distance_matrix_pane_rose.json"
+    
+    import os
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    json_path = os.path.join(current_dir, "../mapping/distance_matrix_pane_rose.json")
+
     with open(json_path, "r") as f:
         tau = eval(f.read())
     
