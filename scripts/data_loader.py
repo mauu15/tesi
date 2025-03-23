@@ -26,7 +26,8 @@ def read_operators(file_path):
                 "hourly_rate": float(row["hourly_rate"]) if row["hourly_rate"] else 0.0,
                 "current_patient_id": None,
                 "do": 0, #do, in minutes
-                "priority": 0
+                "priority": 0,
+                "overtime_minutes": 0
             }
             operators.append(op)
     return operators
