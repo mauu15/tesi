@@ -14,7 +14,7 @@ def MOST(requests, session_start_minute: int, session_end_minute: int):
     """
     # Calcola la durata in minuti e quanti "slot" di 10 minuti contiene
     session_duration = session_end_minute - session_start_minute
-    n_s = session_duration // 10
+    n_s = session_duration // 5
 
     # T[i][t] = numero di operatori richiesti dalla i-esima richiesta
     #           allo slot t, se è attiva, altrimenti 0
