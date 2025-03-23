@@ -8,6 +8,8 @@ from data_loader import operators, requests, patients
 from MOST import MOST
 from visualization import plot_clusters
 from utils import *
+from copy import deepcopy
+
 
 import matplotlib.pyplot as plt
 
@@ -43,7 +45,7 @@ def method_overview(
     afternoon_end:   int = 1320  # 22:00 with 30 min ov
     
     epsilon: float = 0.4     # lambda per il peso tra SSRo e DSRo
-    Kmax: int = 36         # Numero max di cluster da testare (1..Kmax)
+    Kmax: int = 21        # Numero max di cluster da testare (1..Kmax)
 
 
     # Inizializzazione di eventuali strutture di costo globale
@@ -76,6 +78,8 @@ def method_overview(
     # Loop su tutti i giorni e su tutte le sessioni (morning, afternoon)
     # =======================================================================
     all_assignments = {}
+    total_overtime_cost = 0
+    total_routing_cost = 0
 
     for d_i in range(7):
         print(f"[DEBUG] Inizio elaborazione giorno {d_i}")
@@ -101,6 +105,8 @@ def method_overview(
                 r for r in day_requests
                 if session_start <= parse_time_to_minutes(r["min_time_begin"]) < session_end]
             print(f"[DEBUG] Giorno {d_i} sessione {s}: {len(Rds)} richieste filtrate")
+
+            baseline_operators = deepcopy(operators)
             
             # Estrazione della subset di pazienti Pds effettivamente coinvolti (cioè
             # quei pazienti che hanno almeno una richiesta in Rds)
@@ -151,12 +157,18 @@ def method_overview(
                 op["road_time_k"] = {}
                 op["worked_morning_k"] = {}
                 op["worked_after_11:30am_k"] = {}
+                op["overtime_minutes_k"] = {}
 
 
            
             print(f"[DEBUG] Inizio test per diversi valori di K (1..{Kmax}) per giorno {d_i} sessione {s}")
+            
 
             for k in range(1, Kmax):
+                cost_k = 0
+                routing_cost = 0
+                overtime_cost = 0
+                d_ok = 0
                 print(f"[DEBUG] Test con k = {k}")
                  # Setto lo stato degli operatori in base alla sessione, mattina o pomeriggio
                 # e aggiorno i contatori di shift e priorità
@@ -176,6 +188,7 @@ def method_overview(
                     op["road_time_k"][k] = 0
                     op["Lo_k"][k] = []
                     op["do_k"][k] = 0
+                    op["overtime_minutes_k"][k] = 0
                     
                      #Check operator params corecteness
                     #print("Operator ", op["id"], " - global_assignments: ", op["global_assignments"], " - Lo: ", op["Lo"], " - Lok: ", op["Lo_k"][k], " h_o: ", op["ho"], " hok: ", op["ho_k"][k], " e_o: ", op["eo"], " eok: ", op["eo_k"][k], " dok: ", op["do_k"][k], " w_o: ", op["wo"], " wok: ", op["wo_k"][k]) 
@@ -208,7 +221,7 @@ def method_overview(
 
                 if grb_status is False:
                     print(f"[DEBUG] Clustering con k={k} non ammissibile.")
-                    input("Press Enter to continue...")
+                    # input("Press Enter to continue...")
                     continue
 
 
@@ -249,9 +262,12 @@ def method_overview(
                     # somma durate di Rdsc
                     sum_durations = sum(rq['duration'] for rq in Rdsc)
                     five_hours_in_minutes = 300
-                    mu_c = max(np.ceil(sum_durations / five_hours_in_minutes), mc)
+                    exp_op = np.ceil(sum_durations / five_hours_in_minutes)
+                    mu_c = max(exp_op, mc)
                     total_mu += mu_c
 
+                    print("Min same time: ", mc, " - Stima con somma tempi richieste: ", exp_op, " - Numero richieste: ", len(Rdsc))
+                
                     cluster_info.append({
                         'cluster_idx': c_idx,
                         'Rdsc': Rdsc,
@@ -273,6 +289,24 @@ def method_overview(
                 # Calcoliamo il numero di operatori necessari
                 import math
                 num_ops_needed = int(mu_k)
+               
+
+
+                num_ops_needed = min(len(operators), math.ceil(num_ops_needed*1.25))
+
+                print("------------------------------------------------------------")
+                print(f"Operatori assegnati per configurazione {k} con 25%", num_ops_needed)
+                print("------------------------------------------------------------")
+                
+
+                if num_ops_needed > len(operators):
+                    print(f"[DEBUG] Attenzione: numero di operatori necessari ({num_ops_needed}) maggiore del totale ({len(operators)})")
+                    print(f"[DEBUG] Salto la configurazione con k = {k}")
+                    cost_k = float('inf')
+                    input()
+                    continue
+
+
                 # print(mu_k, len(O_sorted))
                 # input("Press Enter to continue...")
                 Ods = O_sorted[:num_ops_needed]
@@ -286,7 +320,7 @@ def method_overview(
                     #take the first mu_c operators
 
                     c_idx = info['cluster_idx'] # cluster index in clusters dict
-                    needed_for_c = info['mu_c']
+                    needed_for_c = int(np.round(info['mu_c']*1.25, 0))
 
                     # 1) Ottiengo l'ID del medoid corrispondente a questo cluster
                     medoid_id = medoids_list[c_idx]
@@ -302,7 +336,9 @@ def method_overview(
 
                     # 4) Prendo i primi needed_for_c operatori
                     assigned_ops = Ods_sorted_by_dist[:int(needed_for_c)]
-
+                    print("---------------")
+                    print(f"NUmber of assigned operators in cluster {c_idx} of configuration {k}: ", len(assigned_ops))
+                    print("---------------")
 
                     # 5) Rimuovo gli operatori assegnati da Ods (per non assegnarli a un altro cluster)
                     for op_assigned in assigned_ops:
@@ -315,8 +351,7 @@ def method_overview(
                 # 5) Chiamata a grs_variants(...) su ciascun cluster
                 # ------------------------------------------------------------
                 
-                cost_k = 0
-                d_ok = 0
+                
                 for info in cluster_info:
                     c_idx = info['cluster_idx']
                     assigned_ops = cluster_ops[c_idx]
@@ -324,24 +359,30 @@ def method_overview(
                     print("Solving GRS for cluster ", c_idx)
                     print(""*5)
 
-                    rc, ovc, doc = grs_variants(
+                    feasible, rc, ovc, doc, n_used_ops = grs_variants(
                         operators=assigned_ops,               # operatori per il cluster
                         requests=info['Rdsc'],                # richieste di quel cluster
                         patients=clusters[c_idx],             # lista dei pazienti del cluster
                         shift_end=session_bounds[s][1],       # orario di fine turno in base alla sessione, [1] serve a selezionare la fine
-                        down_time_true=False,                 # o True, a seconda della logica
+                        down_time_true=True,                 # o True, a seconda della logica
                         tau=tau, k=k                            # matrice delle distanze
                     )
                     
 
+
                     #Check operator params correcteness
-                    # for op in assigned_ops:
-                    #     print("Operator ", op["id"], " -  Lo: ", op["Lo"], " - Lok: ", [op["Lo_k"][k], " h_o: ", op["ho"], " e_o: ", op["eo"], "d_o: ", op["do"], " dok: ", op["do_k"][k], " w_o: ", op["wo"], " wok: ", op["wo_k"][k], "road_k: ", op["road_time_k"][k]) 
-
-
+                    if len(n_used_ops) > 0:
+                        print("Operatori non utilizzati: ", n_used_ops)
+                   
+                    if not feasible:
+                        cost_k = float('inf')
+                        break
+                    else:
+                        cost_k += (rc + ovc)
+                        routing_cost += rc
+                        overtime_cost += ovc
+                        d_ok += doc
                     
-                    cost_k += (rc + ovc)
-                    d_ok += doc
 
                 # Fine loop su c => otteniamo cost_k come la somma
                 # Salviamo cost_k se è il migliore
@@ -354,36 +395,15 @@ def method_overview(
                         'cluster_ops': cluster_ops,
                         'clusters_info': cluster_info
                     }
+
+                    overtime_cost_session = overtime_cost
+                    routing_cost_session = routing_cost
                     print(f"[DEBUG] Nuovo best_cost trovato: {best_cost_for_k} con k = {best_k} totale down time: {d_ok} totale operatori: ", mu_k)
 
-            # -----------------------------------------------------------------------------
-            # Fine loop su k in [1, Kmax]:
-            #   - best_cost_for_k: costo minimo ottenuto tra tutte le configurazioni
-            #   - best_k: è il numero di cluster (k) che ha generato il costo minimo
-            #   - best_assignment: contiene i dettagli dell'assegnazione migliore (i cluster e i relativi operatori)
-            #
-            # Ora aggiornamo lo stato finale di ciascun operatore in base alla configurazione ottimale
-            # (quella salvata in best_assignment). Durante le iterazioni, per ogni operatore abbiamo salvato,
-            # in tabelle temporanee (op["ho_k"], op["eo_k"], op["Lo_k"], op["po_k"], op["do_k"], op["wo_k"]),
-            # i valori calcolati per ciascun possibile valore di k. best_k rappresenta l'indice della configurazione
-            # ottimale.
-            #
-            # Questo blocco di codice itera su ciascun cluster (c_idx) e, per ogni operatore assegnato a quel
-            # cluster, ripristina i seguenti campi:
-            #   - "ho": il tempo residuo nel turno dell'operatore (ho[k] per k = best_k)
-            #   - "eo": l'orario di fine turno (eo[k] per k = best_k)
-            #   - "Lo": la lista delle richieste assegnate (viene effettuato un deepcopy da Lo[k])
-            #   - "po": un parametro (ad es. un output intermedio) calcolato per la configurazione k migliore
-            #   - "do": il tempo di attesa accumulato, come calcolato per best_k
-            #   - "wo": il costo totale o tempo di lavoro accumulato per l'operatore
-            #
-            # Consolidiamo quindi i risultati ottenuti dalla configurazione migliore,
-            # aggiornando definitivamente lo stato degli operatori sulla base della configurazione che ha
-            # minimizzato il costo per la giornata/sessione corrente.
-            # -----------------------------------------------------------------------------
             
             if best_assignment is not None:
                 print(f"[DEBUG] Consolidamento dello stato per giorno {d_i} sessione {s} con best_k = {best_k}")
+                # input()
                 for c_idx, assigned_ops in best_assignment['cluster_ops'].items():
                     # salvo i campi finali di interesse per ogni operatore
                     for op in assigned_ops:
@@ -393,6 +413,7 @@ def method_overview(
                         if best_k in op["worked_after_11:30am_k"].keys():
                             op["worked_after_11:30am"] = op["worked_after_11:30am_k"][best_k]
                         op["road_time"] += op["road_time_k"][best_k]
+                        op["overtime_minutes"] = op["overtime_minutes_k"][best_k]
                         # print(f"[DEBUG] Dopo consolidamento - Operatore {op['id']}: global_assignments = {op['global_assignments']}")
 
 
@@ -401,21 +422,30 @@ def method_overview(
             print(""*5)
             print(f"[DEBUG] Giorno {d_i} sessione {s}: costo = {cost_ds[(d_i, s)]}")
             print(""*5)
-            input()
+
+
+            # input()
              # Genera DataFrame per le statistiche globali e per le assegnazioni
 
             # print("[DEBUG] Stato degli operatori prima del report:")
-            # for op in operators:
-                # print(f"Operatore {op['id']} - global_assignments: {op['global_assignments']}, Lo: {op.get('Lo')}")
+            
+            # Passo alla funzione display_assignments_with_shifts gli operatori con i campi
+            # che mi interessano per il report, ma solo per la sessione corrente, quindi controllo se all'operatore è stato assegnato qualcosa,
+            # in quel caso, avendo prima salvato i campi di ogni operatore, faccio una sottrazione tra i campi attuali e quelli salvati
+            # per ottenere i valori da inserire nel report
+
+            
+
             total_cost = sum(cost_ds.values())
-            global_stats_df = display_global_statistics(operators)
-            assignments_df = display_assignments_with_shifts(operators)
-            save_statistics("TradeOff", d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=global_stats_df, assignments_df=assignments_df)
+            total_overtime_cost += overtime_cost_session
+            total_routing_cost += routing_cost_session
+            print("[DEBUG] - len(Rds): ", len(Rds), " - assigned requests: ", sum(len(op["Lo"]) for op in operators))
+            
+            session_stats_df = display_session_statistics(operators, baseline_operators)
+            session_deltas_df = display_session_deltas(operators, baseline_operators)
+            save_statistics("TradeOff", d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=session_stats_df, assignments_df=session_deltas_df)
             all_assignments[(d_i, s)] = best_assignment
 
-
-    # Calcolo del costo totale
-    
 
     
     # create_directed_graph_of_schedule(...)
@@ -427,6 +457,8 @@ def method_overview(
     return {
         'cost_ds': cost_ds,
         'total_cost': total_cost,
+        'total_overtime_cost': total_overtime_cost,
+        'total_routing_cost': total_routing_cost,
         'details': None 
     }
 
@@ -447,7 +479,9 @@ def main():
     results = method_overview(requests, operators, patients, tau)
     print(results)
 
-    pass
+    save_global_statistics(operators, total_cost=results['total_cost'], total_overtime_cost=results['total_overtime_cost'], total_routing_cost=results['total_routing_cost'])
+    save_global_assignments(operators)
+
 
 if __name__ == "__main__":
     main()
