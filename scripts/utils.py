@@ -25,6 +25,7 @@ def set_operator_state_afternoon(operator):
         operator["ho"] = 360
 
     operator["current_patient_id"] = 'h'
+    operator["overtime_minutes"] = 0
 
 # MATTINA
 def set_operator_state_morning(operator):
@@ -36,6 +37,7 @@ def set_operator_state_morning(operator):
     operator["ho"] = 330
     operator["current_patient_id"] = 'h'
     operator["worked_after_11:30am"] = False
+    operator["overtime_minutes"] = 0
 
 def update_operator_shift_counts(operators):
     """
@@ -83,14 +85,23 @@ def parse_time_to_minutes(time_value):
     in minuti. Ad esempio: "15.55" → 15*60 + 55 = 955 minuti.
     Se il valore non contiene il punto, lo interpreta come ore e lo converte in minuti.
     """
-    s = str(time_value)
-    if '.' in s:
-        parts = s.split('.')
-        hour = int(parts[0])
-        minute = int(parts[1])
-        return hour * 60 + minute
-    else:
-        return int(float(s) * 60)
+    # s = str(time_value)
+    # if '.' in s:
+    #     parts = s.split('.')
+    #     hour = int(parts[0])
+    #     minute = int(parts[1])
+    #     return hour * 60 + minute
+    # else:
+    #     return int(float(s) * 60)
+
+    import numpy as np
+    time = float(time_value)
+    hours = int(time)
+    minutes = hours * 60 + np.round((time - hours) * 100, 0)
+
+    return int(minutes)
+
+
 
 def parse_minutes_to_hours(time_value):
     """
@@ -107,6 +118,8 @@ def parse_minutes_to_hours(time_value):
 # Funzioni per il report dei risultati
 ##############################################################
 
+import os
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "results")
 
 def display_assignments(assignments, operators):
     """"
@@ -133,45 +146,101 @@ def display_assignments_with_shifts(operators):
     - Il totale di minuti (o ore) lavorati in settimana
     - L'elenco di ID richieste mattina/pomeriggio
     """
+
     import pandas as pd
     data = []
     for op in operators:
+        overtime = max(0, op["wo"] - op["Ho"])
         data.append({
             "Operator ID": op["id"],
             "Name": op["name"],
             "Surname": op["surname"],
-            "Assigned Requests": ", ".join(str(x[1]) for x in op["Lo"]),
+            "Assigned Requests": ", ".join(str(x[0]["id"]) for x in op["Lo"]),
             "Num Requests": len(op["Lo"]),
             "Total Hours Worked": parse_minutes_to_hours(op["wo"]),
             "Max Weekly Hours": parse_minutes_to_hours(op["Ho"]),
             "Road Time": parse_minutes_to_hours(op["road_time"]),
-            "Waiting Time": parse_minutes_to_hours(op["do"])
+            "Waiting Time": parse_minutes_to_hours(op["do"]),
+            "Overtime": parse_minutes_to_hours(overtime) if overtime else "No overtime",
         })
     return pd.DataFrame(data)
 
-    
-def display_global_statistics(operators):
+def display_session_statistics(operators, baseline_operators):
     """
-    Calcola alcune statistiche globali dai dati dei singoli operatori:
-      - Total Requests: somma delle richieste mattutine e pomeridiane eseguite
-      - Total Waiting Time: somma totale del waiting time (in formato H.MM)
+    Calcola le statistiche globali dai dati dei singoli operatori:
+      - Assigned Requests: somma delle richieste assegnate (lunghezza di op["Lo"])
+      - Unsatisfied Requests: differenza tra il totale delle richieste in ingresso e quelle assegnate
+      - Total Waiting Time: somma totale del waiting time (in formato H:MM)
       - Total Road Time: somma dei tempi di spostamento
       - Average Waiting Time: media dei waiting time degli operatori
       - Average Road Time: media dei road time degli operatori
     """
     import pandas as pd
-    total_requests = sum(len(op["morning_requests"]) + len(op["afternoon_requests"]) for op in operators)
-    total_waiting = sum(op["d_o"] for op in operators)
+
+    # Calcola il numero di richieste assegnate all'inizio e alla fine della sessione
+    assigned_requests_end = sum(len(op["Lo"]) for op in operators)
+    assigned_requests_start = sum(len(op["Lo"]) for op in baseline_operators)
+
+    # Calcola il delta delle richieste assegnate
+    assigned_requests_delta = assigned_requests_end - assigned_requests_start
+
+    assigned_requests = sum(len(op["Lo"]) for op in operators)
+    total_waiting = sum(op["do"] for op in operators)
+    total_road = sum(op["road_time"] for op in operators)
+    avg_waiting = total_waiting / len(operators) if operators else 0
+    avg_road = total_road / len(operators) if operators else 0
+    overtime_minutes = sum(op["overtime_minutes"] for op in operators)
+
+    
+    # Calcola il totale delle ore lavorate
+    total_hours_worked = sum(op["wo"] for op in operators)
+
+    stats = {
+        "Assigned Requests": assigned_requests_delta,
+        "Total Waiting Time": parse_minutes_to_hours(total_waiting),
+        "Total Road Time": parse_minutes_to_hours(total_road),
+        "Average Waiting Time": parse_minutes_to_hours(avg_waiting),
+        "Average Road Time": parse_minutes_to_hours(avg_road),
+        "Total Overtime": parse_minutes_to_hours(overtime_minutes),
+        "Total Hours Worked": parse_minutes_to_hours(total_hours_worked)
+    }
+    return pd.DataFrame([stats])
+
+
+def display_global_statistics(operators, total_cost, total_overtime_cost, total_routing_cost):
+    """
+    Calcola le statistiche globali dai dati dei singoli operatori:
+      - Assigned Requests: somma delle richieste assegnate (lunghezza di op["Lo"])
+      - Unsatisfied Requests: differenza tra il totale delle richieste in ingresso e quelle assegnate
+      - Total Waiting Time: somma totale del waiting time (in formato H:MM)
+      - Total Road Time: somma dei tempi di spostamento
+      - Average Waiting Time: media dei waiting time degli operatori
+      - Average Road Time: media dei road time degli operatori
+    """
+    import pandas as pd
+    assigned_requests = sum(len(op["Lo"]) for op in operators)
+    total_waiting = sum(op["do"] for op in operators)
     total_road = sum(op["road_time"] for op in operators)
     avg_waiting = total_waiting / len(operators) if operators else 0
     avg_road = total_road / len(operators) if operators else 0
 
+    # Calcola l'overtime totale
+    total_overtime = sum(max(0, op["wo"] - op["Ho"]) for op in operators)
+
+    # Calcola il totale delle ore lavorate
+    total_hours_worked = sum(op["wo"] for op in operators)
+
     stats = {
-        "Total Requests": total_requests,
+        "Assigned Requests": assigned_requests,
         "Total Waiting Time": parse_minutes_to_hours(total_waiting),
         "Total Road Time": parse_minutes_to_hours(total_road),
         "Average Waiting Time": parse_minutes_to_hours(avg_waiting),
-        "Average Road Time": parse_minutes_to_hours(avg_road)
+        "Average Road Time": parse_minutes_to_hours(avg_road),
+        "Total Cost": round(total_cost, 2),
+        "Routing Cost": round(total_routing_cost, 2),
+        "Overtime Cost": round(total_overtime_cost, 2),
+        "Total Overtime": parse_minutes_to_hours(total_overtime),
+        "Total Hours Worked": parse_minutes_to_hours(total_hours_worked)
     }
     return pd.DataFrame([stats])
 
@@ -184,8 +253,10 @@ def save_statistics(variant_name, day, session, k, cost_ds, total_cost, global_s
       - global_statistics.csv (generato con display_global_statistics)
       - assignments.csv (generato con display_assignments_with_shifts)
     """
-    import os, json
-    folder_path = f"tesi/results/variant_{variant_name}/day_{day}/session_{session}/k_{k}"
+    import os, json, shutil
+    folder_path = os.path.join(RESULTS_DIR, f"variant_{variant_name}", f"day_{day}", f"session_{session}", f"k_{k}")
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
     os.makedirs(folder_path, exist_ok=True)
     
     cost_ds_str = {f"{key[0]}_{key[1]}": value for key, value in cost_ds.items()}
@@ -198,17 +269,63 @@ def save_statistics(variant_name, day, session, k, cost_ds, total_cost, global_s
         "session": session,
         "k": k,
         "cost_ds": cost_ds_str,
-        "total_cost": total_cost
+        "total_cost": round(total_cost, 2)
     }
 
-    out_file = os.path.join(folder_path, "stats.json")
+    out_file = os.path.join(folder_path, f"stats_D{day}_S{session}.json")
     with open(out_file, "w") as f:
         json.dump(data, f, indent=2)
     
     # Salvataggio global statistics in CSV
-    global_csv = os.path.join(folder_path, "global_statistics.csv")
+    global_csv = os.path.join(folder_path, f"statistics_D{day}_S{session}.csv")
     global_stats_df.to_csv(global_csv, index=False)
     
     # Salvataggio assignments (con turni) in CSV
-    assignments_csv = os.path.join(folder_path, "assignments.csv")
+    assignments_csv = os.path.join(folder_path, f"assignments_D{day}_S{session}.csv")
     assignments_df.to_csv(assignments_csv, index=False)
+
+
+def save_global_statistics(operators, total_cost, total_overtime_cost, total_routing_cost, output_dir=RESULTS_DIR):
+    os.makedirs(output_dir, exist_ok=True)
+    global_stats_df = display_global_statistics(operators, total_cost, total_overtime_cost, total_routing_cost)
+    save_path = os.path.join(output_dir, "global_statistics.csv")
+    global_stats_df.to_csv(save_path, index=False)
+    print(f"Global statistics saved to {save_path}")
+
+def save_global_assignments(operators, output_dir=RESULTS_DIR):
+    os.makedirs(output_dir, exist_ok=True)
+    assignments_df = display_assignments_with_shifts(operators)
+    save_path = os.path.join(output_dir, "global_assignments.csv")
+    assignments_df.to_csv(save_path, index=False)
+    print(f"Global assignments saved to {save_path}")
+
+
+def display_session_deltas(operators, baseline_operators):
+    """
+    Costruisce un DataFrame che mostra, per ciascun operatore, i delta ottenuti dalla
+    differenza tra lo stato attuale e quello di baseline della sessione.
+    
+    Le colonne sono:
+      - Operator ID
+      - Assigned Requests (delta): differenza nel numero di richieste assegnate
+      - Additional Working Time: incremento dei minuti lavorati (puoi formattarli in ore:minuti se preferisci)
+      - Additional Waiting Time: incremento dei minuti di attesa
+      - Additional Road Time: incremento dei minuti di spostamento
+    """
+    import pandas as pd
+    session_deltas = []
+    for op_current, op_baseline in zip(operators, baseline_operators):
+        baseline_ids = {req[0]["id"] for req in op_baseline["Lo"]}
+        new_assigned = [req for req in op_current["Lo"] if req[0]["id"] not in baseline_ids]
+        delta = {
+            "Operator ID": op_current["id"],
+            "Name": op_current["name"],
+            "Surname": op_current["surname"],
+            "Assigned Requests": ", ".join(str(req[0]["id"]) for req in new_assigned),
+            "Num Requests": len(new_assigned),
+            "Working Time": parse_minutes_to_hours(op_current["wo"] - op_baseline["wo"]),
+            "Waiting Time": parse_minutes_to_hours(op_current["do"] - op_baseline["do"]),
+            "Road Time": parse_minutes_to_hours(op_current["road_time"] - op_baseline["road_time"])
+        }
+        session_deltas.append(delta)
+    return pd.DataFrame(session_deltas)
