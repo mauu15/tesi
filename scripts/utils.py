@@ -428,8 +428,110 @@ def plot_time_distributions(df, variant_name, output_dir=RESULTS_DIR, show_plot=
     return saved_paths
 
 
-def calculate_and_save_stats(variant_name):
-    print(f"Calcolo e salvataggio delle statistiche per la variante {variant_name}...")
+def calculate_and_save_stats(variant_name, requests):
+    """
+    Legge il file CSV contenente gli assignments degli operatori e calcola le statistiche globali:
+      - Assigned Requests: somma dei Num Requests
+      - Total Waiting Time: somma dei Waiting Time
+      - Total Road Time: somma dei Road Time
+      - Average Waiting Time: media dei Waiting Time
+      - Average Road Time: media dei Road Time
+      - Total Cost: Routing Cost + Overtime Cost
+      - Routing Cost: Total Road Time in minuti * 0.37
+      - Overtime Cost: Total Overtime in minuti * 0.29
+      - Total Overtime: somma degli Overtime
+      - Total Hours Worked: somma dei Total Hours Worked
+      - Occupation Ratio: (Total Hours Worked / Max Weekly Hours_totali) * 100
+     
+    I tempi sono espressi nel formato "HH:MM" (oppure "No overtime", interpretato come 0).
+    Il file CSV viene letto da:
+      RESULTS_DIR/variant_{variant_name}/global_assignments_{variant_name}.csv
+    La statistica risultante viene salvata come file CSV
+      RESULTS_DIR/variant_{variant_name}/stats_{variant_name}.csv
+    """
+    import os
+    import pandas as pd
+
+    csv_path = os.path.join(RESULTS_DIR,
+                            f"variant_{variant_name}",
+                            f"global_assignments_{variant_name}.csv")
+    
+    if not os.path.exists(csv_path):
+        print(f"Il file {csv_path} non esiste.")
+        return
+
+    df = pd.read_csv(csv_path)
+
+    # Calcolo delle statistiche
+    total_assigned = df["Num Requests"].sum()
+
+    waiting_minutes = df["Waiting Time"].apply(time_str_to_minutes)
+    road_minutes    = df["Road Time"].apply(time_str_to_minutes)
+    overtime_minutes= df["Overtime"].apply(time_str_to_minutes)
+    worked_minutes  = df["Total Hours Worked"].apply(time_str_to_minutes)
+    max_minutes     = df["Max Weekly Hours"].apply(time_str_to_minutes)
+    
+    total_waiting = waiting_minutes.sum()
+    total_road    = road_minutes.sum()
+    total_overtime= overtime_minutes.sum()
+    total_worked  = worked_minutes.sum()
+    total_max     = max_minutes.sum()
+
+    n_ops = len(df)
+    avg_waiting = total_waiting / n_ops if n_ops else 0
+    avg_road    = total_road / n_ops if n_ops else 0
+
+    # Calcolo dei costi
+    routing_cost  = total_road * 0.37
+    overtime_cost = total_overtime * 0.29
+    total_cost    = routing_cost + overtime_cost
+
+    # Calcolo del rapporto di occupazione
+
+    requests_map = { str(r["id"]): r["duration"] for r in requests }
+    total_service_time = sum(r["duration"] for r in requests)
+    assigned_service_time = 0
+    for idx, row in df.iterrows():
+        assigned_ids = row["Assigned Requests"]
+        if pd.isna(assigned_ids) or not assigned_ids.strip():
+            continue
+        for rid in assigned_ids.split(","):
+            rid = rid.strip()
+            if rid in requests_map:
+                assigned_service_time += requests_map[rid]
+    
+    occupation_ratio = (assigned_service_time / total_service_time * 100) if total_service_time > 0 else 0
+
+    # Funzione per convertire i minuti in formato "H:MM"
+    def parse_minutes_to_hours(time_value):
+        total = int(round(time_value))
+        hours = total // 60
+        minutes = total % 60
+        return f"{hours}:{minutes:02d}"
+
+    stats = {
+        "Assigned Requests": total_assigned,
+        "Total Waiting Time": parse_minutes_to_hours(total_waiting),
+        "Total Road Time": parse_minutes_to_hours(total_road),
+        "Average Waiting Time": parse_minutes_to_hours(avg_waiting),
+        "Average Road Time": parse_minutes_to_hours(avg_road),
+        "Total Cost": round(total_cost, 2),
+        "Routing Cost": round(routing_cost, 2),
+        "Overtime Cost": round(overtime_cost, 2),
+        "Total Overtime": parse_minutes_to_hours(total_overtime),
+        "Total Hours Worked": parse_minutes_to_hours(total_worked),
+        "Occupation Ratio": round(occupation_ratio, 2)
+    }
+
+    # Salva le statistiche in un CSV
+    stats_df = pd.DataFrame([stats])
+    output_file = os.path.join(RESULTS_DIR,
+                               f"variant_{variant_name}",
+                               f"global_statistics_{variant_name}.csv")
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    stats_df.to_csv(output_file, index=False)
+    print(f"Statistiche salvate in {output_file}")
+
 
 def save_operator_scheduling(operators, baseline_operators, tau, variant_name, day, session):
     print(f"Salvataggio dello scheduling degli operatori per la variante {variant_name}...")
