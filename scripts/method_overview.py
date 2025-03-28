@@ -24,7 +24,8 @@ def method_overview(
     epsilon: float, 
     down_time_true: bool,
     Kmax: int,
-    multiplier: float
+    multiplier: float,
+    kfixed: int = 0,
 ):
     """
     Implementazione dell'Algoritmo 6: METHOD OVERVIEW
@@ -50,13 +51,6 @@ def method_overview(
     afternoon_start: int = 960   # 16:00
     afternoon_end:   int = 1320  # 22:00 with 30 min ov
     
-    # epsilon: float = 0.4     # lambda per il peso tra SSRo e DSRo
-    # Kmax: int = 37      # Numero max di cluster da testare (1..Kmax)
-    # down_time_true=True # True se si vuole considerare il tempo di attesa tra una richiesta e l'altra
-
-
-
-    # Inizializzazione di eventuali strutture di costo globale
     total_cost = 0
 
     for op in operators:
@@ -135,17 +129,6 @@ def method_overview(
             points = np.array([[p['lat'], p['lon']] for p in Pds])
 
             
-            # plot_clusters(
-            #     points,
-            #     clusters=clusters_dict,         
-            #     medoid_indices=medoids_list,    
-            #     filename=None,
-            #     output_dir=None
-            # )
-
-            # ============================================================
-            # Provo tutti i possibili K = 1..Kmax (20) e valuto il costo
-            # ============================================================
             best_cost_for_k = None
             best_k = None
             best_clusters = None
@@ -181,7 +164,7 @@ def method_overview(
                 overtime_cost = 0
                 d_ok = 0
                 print(f"[DEBUG] Test con k = {k}")
-                 # Setto lo stato degli operatori in base alla sessione, mattina o pomeriggio
+                # Setto lo stato degli operatori in base alla sessione, mattina o pomeriggio
                 # e aggiorno i contatori di shift e priorità
                 if s == 'm':
                     for op in operators:
@@ -244,7 +227,7 @@ def method_overview(
                 from visualization import plot_clusters
 
 
-                plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, medoids_list)
+                plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, medoids_list, k=k, output_dir=RESULTS_DIR)
 
                 print(f"[DEBUG] Clustering con k={k} completato, {len(clusters_dict)} cluster creati.")
 
@@ -588,7 +571,7 @@ def run_all_configurations():
         tau = eval(f.read())
     
     # PARAMETRI DI CONFIGURAZIONE FISSI
-    Kmax = 36  # Numero max di cluster da testare (1..Kmax-1)
+    Kmax = 37  # Numero max di cluster da testare (1..Kmax-1)
     
     # Valori da testare per le 3 variabili
     epsilons = [0.5, 0.4, 0.6]         # 3 valori per epsilon
@@ -649,7 +632,7 @@ def run_test_configuration():
     with open(json_path, "r") as f:
         tau = eval(f.read())
     
-    Kmax = 6  # Numero max di cluster
+    Kmax = 3  # Numero max di cluster
 
     # Configurazione di test
     epsilon = 0.4
@@ -712,12 +695,12 @@ def run_specific_configuration(variant_letter):
     with open(json_path, "r") as f:
         tau = eval(f.read())
     
-    Kmax = 36  # Numero max di cluster
+    Kmax = 37  # Numero max di cluster
 
     # Definisci i valori da testare
     epsilons = [0.5, 0.4, 0.6]
     down_time_trues = [True, False]
-    multipliers = [1.25, 1] #Con 1.35 variante A fa 100%
+    multipliers = [1.25, 1] 
 
     configurazioni = list(itertools.product(epsilons, down_time_trues, multipliers))
     variant_letters = list(string.ascii_uppercase[:len(configurazioni)])
