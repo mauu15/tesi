@@ -585,7 +585,7 @@ def save_operator_scheduling(operators, baseline_operators, tau, variant_name, d
                     alpha = req.get("min_time_begin", "")
                     beta  = req.get("max_time_begin", "")
                     t_i   = req.get("duration", "")
-                    line_req = f"Richiesta (id: {req_id}, Alpha: {alpha}, Beta: {beta}, b_i: {b_i}, t_i: {t_i})\n"
+                    line_req = f"Richiesta (id: {req_id}, project_id: {project_id}, Alpha: {alpha}, Beta: {beta}, b_i: {b_i}, t_i: {t_i})\n"
                     f_out.write(line_req)
 
                     if i < len(new_assignments) - 1:
