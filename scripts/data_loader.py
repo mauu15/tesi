@@ -20,7 +20,7 @@ def read_operators(file_path):
                 "name": row["name"],
                 "surname": row["surname"],
                 "wo": 0, #wo, in minutes
-                "Ho": int(float(row["max_weekly_hours"]) * 60) if row["max_weekly_hours"] else 0, # H_o
+                "Ho": int(float(row["max_weekly_hours"]) * 60) if row["max_weekly_hours"] else 0, # H_o, espresso in minuti
                 "lat": float(row["lat"]) if row["lat"] else 0.0,
                 "lon": float(row["lon"]) if row["lon"] else 0.0,
                 "hourly_rate": float(row["hourly_rate"]) if row["hourly_rate"] else 0.0,
