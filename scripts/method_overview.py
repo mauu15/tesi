@@ -524,7 +524,7 @@ def method_overview(
             total_routing_cost += routing_cost_session
             print("[DEBUG] - len(Rds): ", len(Rds), " - assigned requests: ", sum(len(op["Lo"]) for op in operators))
             
-            session_stats_df = display_session_statistics(operators, baseline_operators)
+            session_stats_df = display_session_statistics(operators, baseline_operators, assigned_requests, unassigned_requests)
             session_deltas_df = display_session_deltas(operators, baseline_operators)
             save_statistics(variant, d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=session_stats_df, assignments_df=session_deltas_df)
             all_assignments[(d_i, s)] = best_assignment
@@ -630,8 +630,10 @@ def run_all_configurations():
         df_assign = pd.read_csv(assignments_file)
         plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
 
+        save_histograms(variant_name)
+
         
-        combine_results()
+    combine_results()
 
 def run_test_configuration():
     """
@@ -678,11 +680,13 @@ def run_test_configuration():
     
     save_global_assignments(operators, variant_name=variant_name)
     
-    calculate_and_save_stats(variant_name)
+    # calculate_and_save_stats(variant_name)
     
-    assignments_file = os.path.join(variant_dir, f"global_assignments_{variant_name}.csv")
+    assignments_file = os.path.join(variant_dir, f"global_assignments_variant{variant_name}.csv")
     df_assign = pd.read_csv(assignments_file)
     plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
+
+    save_histograms(variant_name)
 
     
 
@@ -758,6 +762,8 @@ def run_specific_configuration(variant_letter):
     assignments_file = os.path.join(variant_dir, f"global_assignments_{variant_name}.csv")
     df_assign = pd.read_csv(assignments_file)
     plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
+
+    save_histograms(variant_name)
 
 def main():
     # Controlla i parametri da linea di comando:
