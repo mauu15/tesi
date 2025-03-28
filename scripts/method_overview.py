@@ -26,7 +26,7 @@ def method_overview(
     down_time_true: bool,
     Kmax: int,
     multiplier: float,
-    kfixed: int = 0,
+    kfixed: int = None,
 ):
     """
     Implementazione dell'Algoritmo 6: METHOD OVERVIEW
@@ -158,7 +158,8 @@ def method_overview(
             
             
             unassigned_requests_k = {}
-            for k in range(1, Kmax):
+            k_values = range(1, Kmax) if kfixed is None else [kfixed]
+            for k in k_values:
                 unassigned_requests_k[k] = False
                 cost_k = 0
                 routing_cost = 0
@@ -550,6 +551,7 @@ def run_all_configurations():
     
     # PARAMETRI DI CONFIGURAZIONE FISSI
     Kmax = 37  # Numero max di cluster da testare (1..Kmax-1)
+    kfixed = None  # Se specificato, usa questo valore fisso per k
     
     # Valori da testare per le 3 variabili
     epsilons = [0.5, 0.4, 0.6]         # 3 valori per epsilon
@@ -569,7 +571,8 @@ def run_all_configurations():
                                   epsilon=epsilon,
                                   down_time_true=down_time_true,
                                   Kmax=Kmax,
-                                  multiplier=multiplier)
+                                  multiplier=multiplier,
+                                  kfixed=kfixed)
         print(results)
 
         # Salva i parametri usati in un file nella cartella della variante
@@ -611,6 +614,7 @@ def run_test_configuration():
         tau = eval(f.read())
     
     Kmax = 3  # Numero max di cluster
+    kfixed = None  # Se specificato, usa questo valore fisso per k
 
     # Configurazione di test
     epsilon = 0.4
@@ -625,7 +629,8 @@ def run_test_configuration():
                               epsilon=epsilon,
                               down_time_true=down_time_true,
                               Kmax=Kmax,
-                              multiplier=multiplier)
+                              multiplier=multiplier,
+                              kfixed=kfixed)
     print(results)
 
     variant_dir = os.path.join(RESULTS_DIR, f"variant_{variant_name}")
@@ -674,6 +679,7 @@ def run_specific_configuration(variant_letter):
         tau = eval(f.read())
     
     Kmax = 37  # Numero max di cluster
+    kfixed = None  # Se specificato, usa questo valore fisso per k
 
     # Definisci i valori da testare
     epsilons = [0.5, 0.4, 0.6]
@@ -698,7 +704,8 @@ def run_specific_configuration(variant_letter):
                               epsilon=epsilon,
                               down_time_true=down_time_true,
                               Kmax=Kmax,
-                              multiplier=multiplier)
+                              multiplier=multiplier,
+                              kfixed=kfixed)
     print(results)
 
     variant_dir = os.path.join(RESULTS_DIR, f"variant_{variant_name}")
