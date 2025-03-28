@@ -46,9 +46,11 @@ def grs_variants(operators, requests, patients, shift_end, down_time_true, tau, 
     sorted_requests = sorted(requests, key=lambda r: parse_time_to_minutes(r["min_time_begin"]))
 
     # creo sorted_operators in modo che l'operatore a cui rimane più tempo da lavorare sia il primo 
-    sorted_operators = sorted(operators, key=lambda o: o["Ho"] - o["wo"], reverse=True)
+    sorted_operators = sorted(operators, key=lambda o: o["Ho"] - o["wo_k"][k], reverse=True)
 
     tot_waiting_time = 0
+
+
     # Ciclo greedy: per ogni richiesta, seleziona l'operatore migliore in base al costo
     for req in sorted_requests:
         
@@ -62,7 +64,7 @@ def grs_variants(operators, requests, patients, shift_end, down_time_true, tau, 
         waiting_time = {}
 
         for op in sorted_operators:
-            waiting_time[op["id"]] = max(alpha_i - op["eo"] - tau[op["current_patient_id"], req["project_id"]], 0) if op["Lo_k"][k] else 0
+            waiting_time[op["id"]] = max(alpha_i - op["eo"] - tau[op["current_patient_id"], req["project_id"]], 0) if op["current_patient_id"] != "h" else 0
     
         feasible_ops = [op for op in sorted_operators if op["eo"] + tau[op["current_patient_id"], req["project_id"]] <= beta_i and tau[op["current_patient_id"], req["project_id"]] + req["duration"] + waiting_time[op["id"]] <= op["ho"]]
 
@@ -92,7 +94,7 @@ def grs_variants(operators, requests, patients, shift_end, down_time_true, tau, 
                 """
                
                 
-                r_c, ov_c, f_oi = compute_f_oi(op, req, waiting_time[op["id"]], tau=tau, down_time_true=down_time_true)
+                r_c, ov_c, f_oi = compute_f_oi(op, req, waiting_time[op["id"]], k, tau=tau, down_time_true=down_time_true)
                 if f_oi < best_f_oi:
                     best_f_oi = f_oi
                     best_op = op
@@ -138,10 +140,11 @@ def grs_variants(operators, requests, patients, shift_end, down_time_true, tau, 
 
             # Aggiungo la richiesta alla lista
             best_op["Lo_k"][k].append((req, b_i)) # Lo = Lo U (i,b_i)
+           
             # [DEBUG] print(f"[DEBUG grs_variants] Operatore {best_op['id']} global_assignments: {best_op['global_assignments']}")
 
-            # segno quanto overtime ha fatto l'operatore
-            best_op["overtime_minutes_k"][k] = max(best_op["wo_k"][k] - best_op["Ho"], 0)
+            # segno quanto overtime ha fatto l'operatore nella sessione
+            best_op["overtime_minutes_k"][k] = max(30 - best_op["ho"], 0)
 
             req["b_i"] = b_i
 
@@ -165,13 +168,13 @@ def grs_variants(operators, requests, patients, shift_end, down_time_true, tau, 
     operators_id = [op["id"] for op in operators]
     not_used_ops = [op for op in operators_id if op not in used_ops]
 
-    return feasible, total_routing_cost, total_overtime_cost, sum(op["do_k"][k] for op in operators), not_used_ops
+    return total_routing_cost, total_overtime_cost, sum(op["do_k"][k] for op in operators), not_used_ops
 
 ###############################################################################
 # Funzione per calcolare il costo extra (f_oi) dell'assegnazione
 ###############################################################################
 
-def compute_f_oi(operator, request, waiting_time, theta=0.37, tau=None, down_time_true=False):
+def compute_f_oi(operator, request, waiting_time, k, theta=0.37, tau=None, down_time_true=False):
     """
     Calcola il valore f_oi per l'assegnazione della richiesta all'operatore.
 
@@ -201,10 +204,10 @@ def compute_f_oi(operator, request, waiting_time, theta=0.37, tau=None, down_tim
     service_time = request["duration"]
 
     # Verifico se assegnare la richiesta porta l'operatore in overtime con waiting_time
-    if operator["wo"] + service_time + travel_time + waiting_time > operator["Ho"]:
+    if operator["wo_k"][k] + service_time + travel_time + waiting_time > operator["Ho"]:
         op_cost_per_minute = 0.29 # C_o, 17.5 €/h, quindi 0.29 €/min
         
-        overtime_cost = op_cost_per_minute * (service_time + travel_time + waiting_time+min(operator["wo"] - operator["Ho"], 0))
+        overtime_cost = op_cost_per_minute * (service_time + travel_time + waiting_time+min(operator["wo_k"][k] - operator["Ho"], 0)) # fix
     else:
         overtime_cost = 0
 
