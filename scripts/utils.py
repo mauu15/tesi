@@ -533,7 +533,7 @@ def calculate_and_save_stats(variant_name, requests):
     print(f"Statistiche salvate in {output_file}")
 
 
-def save_operator_scheduling(operators, baseline_operators, tau, variant_name, day, session):
+def save_operator_scheduling(operators, baseline_operators, tau, variant_name, day, session, patients):
     """
     Salva le assegnazioni dei singoli operatori in file di testo separati per il giorno e la sessione indicati.
     
@@ -571,7 +571,7 @@ def save_operator_scheduling(operators, baseline_operators, tau, variant_name, d
         file_path = os.path.join(base_sched_dir, filename)
 
         with open(file_path, "w") as f_out:
-            header = f"Operatore ID: {op['id']}\n\n"
+            header = f"Operatore ID: {op['id']}, Coordinate Operatore: {op['lat']}, {op['lon']}\n\n"
             f_out.write(header)
 
             if not new_assignments:
@@ -582,11 +582,22 @@ def save_operator_scheduling(operators, baseline_operators, tau, variant_name, d
                 for i, (req, b_i) in enumerate(new_assignments):
                     req_id = req.get("id", "")
                     project_id = req.get("project_id", "")
+                    
+                    # Ricerca del paziente per project_id per ottenere le coordinate
+                    patient = next((p for p in patients if p["id"] == project_id), None)
+                    if patient is not None:
+                        lat = patient.get("lat", "")
+                        lon = patient.get("lon", "")
+                        coord_str = f"Coordinate paziente: ({lat}, {lon})"
+                    else:
+                        coord_str = "Coordinate: (non trovate)"
+
                     alpha = req.get("min_time_begin", "")
                     beta  = req.get("max_time_begin", "")
                     t_i   = req.get("duration", "")
-                    line_req = f"Richiesta (id: {req_id}, project_id: {project_id}, Alpha: {alpha}, Beta: {beta}, b_i: {b_i}, t_i: {t_i})\n"
+                    line_req = f"Richiesta (id: {req_id}, project_id: {project_id}, Alpha: {parse_time_to_minutes(alpha)}, Beta: {parse_time_to_minutes(beta)}, b_i: {b_i}, t_i: {t_i})\n"
                     f_out.write(line_req)
+                    f_out.write(coord_str + "\n")
 
                     if i < len(new_assignments) - 1:
                         next_req, next_b_i = new_assignments[i+1]
