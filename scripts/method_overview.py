@@ -423,11 +423,6 @@ def method_overview(
                     routing_cost_session = routing_cost
                     print(f"[DEBUG] Nuovo best_cost trovato: {best_cost_for_k} con k = {best_k} totale down time: {d_ok} totale operatori: ", mu_k)
                   
-                        
-                    
-                    
-
-            
 
             if best_assignment is not None:
 
@@ -462,10 +457,10 @@ def method_overview(
 
 
             
-            save_operator_scheduling(operators, baseline_operators, tau,  variant_name=variant, day=d_i, session=s)
+            save_operator_scheduling(operators, baseline_operators, tau, variant_name=variant, day=d_i, session=s)
 
             
-             # Genera DataFrame per le statistiche globali e per le assegnazioni
+            # Genera DataFrame per le statistiche globali e per le assegnazioni
 
             # print("[DEBUG] Stato degli operatori prima del report:")
 
