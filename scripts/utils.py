@@ -70,8 +70,8 @@ def update_operator_priority(operators, epsilon):
             op['priority'] = 0
             continue
         
-        op['SSRo'] = (op['single_shift_requests'] * 5.0) / op["Ho"]
-        op['DSRo'] = (op.get('double_shift_requests', 0) * 7.5) / op["Ho"]
+        op['SSRo'] = (op['single_shift_requests'] * 60) / op["Ho"]
+        op['DSRo'] = (op.get('double_shift_requests', 0) * 60) / op["Ho"]
         op['priority'] = epsilon * op['SSRo'] + (1 - epsilon) * op['DSRo']  
 
 
