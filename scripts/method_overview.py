@@ -462,30 +462,12 @@ def method_overview(
 
 
             
-            #save_operator_scheduling(operators, baseline_operators, tau,  variant_name=variant, day=d_i, session=s)
+            save_operator_scheduling(operators, baseline_operators, tau,  variant_name=variant, day=d_i, session=s)
 
             
              # Genera DataFrame per le statistiche globali e per le assegnazioni
 
             # print("[DEBUG] Stato degli operatori prima del report:")
-            
-            # Passo alla funzione display_assignments_with_shifts gli operatori con i campi
-            # che mi interessano per il report, ma solo per la sessione corrente, quindi controllo se all'operatore è stato assegnato qualcosa,
-            # in quel caso, avendo prima salvato i campi di ogni operatore, faccio una sottrazione tra i campi attuali e quelli salvati
-            # per ottenere i valori da inserire nel report
-
-            
-
-            # create_hhc_map_session(
-            #     operators=operators,
-            #     patients=patients,
-            #     tau=tau,
-            #     day=d_i,
-            #     session=s,
-            #     session_bounds=session_bounds,
-            #     variant_name="TradeOff",
-            #     output_dir=RESULTS_DIR,
-            # )
 
             requests_map = {}
             for r in requests:
@@ -518,13 +500,13 @@ def method_overview(
             
             session_stats_df = display_session_statistics(operators, baseline_operators)
             session_deltas_df = display_session_deltas(operators, baseline_operators)
-            #save_statistics(variant, d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=session_stats_df, assignments_df=session_deltas_df)
+            save_statistics(variant, d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=session_stats_df, assignments_df=session_deltas_df)
             all_assignments[(d_i, s)] = best_assignment
             
 
 
     
-    
+    # scheduling settimanale, da reimplementare
     #save_operator_scheduling(operators, baseline_operators, tau, variant_name=variant)
 
     print("[METHOD OVERVIEW] - Completed.")
