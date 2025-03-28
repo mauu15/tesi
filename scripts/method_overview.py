@@ -637,6 +637,9 @@ def run_all_configurations():
         df_assign = pd.read_csv(assignments_file)
         plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
 
+        from combine_results import combine_results
+        combine_results(variant_name=variant_name)
+
 def run_test_configuration():
     """
     Esegue una configurazione di test per verificare il funzionamento del metodo.
@@ -685,6 +688,8 @@ def run_test_configuration():
     assignments_file = os.path.join(variant_dir, f"global_assignments_{variant_name}.csv")
     df_assign = pd.read_csv(assignments_file)
     plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
+
+    
 
 def run_specific_configuration(variant_letter):
     """
