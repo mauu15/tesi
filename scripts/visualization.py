@@ -6,11 +6,10 @@ from matplotlib.legend_handler import HandlerTuple
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 
-# Definizione della cartella base del progetto.
-# Poiché questo file si trova in "tesi/scripts", il BASE_DIR sarà "tesi"
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Gestione cartelle: le immagini saranno salvate in BASE_DIR/imgs
+
 output_dir = os.path.join(BASE_DIR, "imgs")
 kmedoids_dir = os.path.join(output_dir, "kmedoids")
 
