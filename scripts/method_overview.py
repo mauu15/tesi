@@ -29,21 +29,50 @@ def method_overview(
     kfixed: int = None,
 ):
     """
-    Implementazione dell'Algoritmo 6: METHOD OVERVIEW
-    che itera su Kmax configurazioni e seleziona la migliore
-    per scheduling e routing delle richieste su più giorni/sessions.
+    Implementazione dell'Algoritmo METHOD OVERVIEW
 
-    :param requests: Lista di richieste, ognuna con campi come:
-              'id', 'project_id', 'day', 'duration', 'min_time_begin', 'max_time_begin'
-    :param operators: Lista di operatori
-    :param patients: Lista di pazienti
-    :param morning_start, morning_end: Inizio/fine sessione mattutina (minuti)
-    :param afternoon_start, afternoon_end: Inizio/fine sessione pomeridiana (minuti)
-    :param epsilon: Peso per combinare SingleShiftRo(SSRo) e DoubleShiftRo(DSRo) 
-    :param Kmax: Numero massimo di cluster da testare (default 20)
+    L'algoritmo si occupa di elaborare lo scheduling e il routing delle richieste su
+    più giorni e sessioni (mattina e pomeriggio), selezionando la configurazione con il
+    costo globale minore. Per ogni giorno della settimana e per ciascuna sessione, il metodo:
 
-    :return: Un dizionario/struttura che contiene i risultati finali,
-             inclusi costi, assegnazioni e qualunque output desideri.
+      1. Filtra le richieste in base all'orario della sessione e identifica i pazienti effettivamente interessati.
+      2. Calcola i pesi per ciascun paziente in funzione del numero di richieste a lui associate.
+      3. Esegue il clustering dei pazienti utilizzando la matrice delle distanze (tau) e testando
+         diverse configurazioni: se non viene specificato un valore fisso di k (kfixed), si iterano
+         tutti i valori da 1 a (Kmax-1), altrimenti viene usato soltanto il valore di kfixed.
+      4. Per ogni configurazione di cluster viene applicato il modello MIPClustering per ottenere:
+             - I cluster e i medoids corrispondenti.
+      5. Calcola, per ciascun cluster, il parametro µc, ovvero il numero minimo di operatori necessari simultaneamente
+      6. Si applica un fattore γ come “margine di sicurezza” sul numero di operatori stimato, per verificare se la 
+         disponibilità di operatori effettiva è sufficiente a coprire le richieste di tutti i cluster.
+      7. Assegna gli operatori ai cluster in maniera greedy, ordinandoli in base alla distanza calcolata 
+         tramite tau rispetto ai medoids.
+      8. Contestualmente, vengono salvate variabili temporanee per ciascun operatore, in modo da poter 
+         comparare e ripristinare lo stato a seconda della configurazione di k.
+      9. Il costo totale della configurazione corrente viene calcolato sommando i costi di routing ed 
+         overtime, con eventuali penalizzazioni per richieste non assegnate.
+     10. Infine, viene selezionata la configurazione con il costo minimo tra quelle ammissibili.
+
+    I risultati includono:
+      - I costi globali e per sessione (routing, overtime, penalità per richieste non assegnate).
+      - Le assegnazioni finali degli operatori e la configurazione (valore di k) ottimale scelta.
+      - La memorizzazione dei file di scheduling per ciascun operatore e l'output grafico (cluster plot).
+
+    I parametri in ingresso sono:
+      - requests: lista di richieste con campi come 'id', 'project_id', 'day', 'duration', 'min_time_begin', 'max_time_begin'.
+      - operators: lista di operatori, che vengono aggiornati durante le diverse iterazioni.
+      - patients: lista dei pazienti.
+      - tau: matrice (o dizionario) delle distanze, usata per conoscere i tempi di percorrenza.
+      - variant: nome della configurazione corrente (tipicamente una lettera, es. "A").
+      - epsilon: peso per combinare differenti componenti di costo (es. SingleShiftRo e DoubleShiftRo).
+      - down_time_true: flag per il calcolo dei costi in base al down time.
+      - Kmax: numero massimo di cluster da testare (in assenza di un k fisso, si itera da 1 fino a Kmax-1).
+      - multiplier: fattore usato per determinare il numero di operatori necessari.
+      - kfixed: se specificato, viene utilizzato esclusivamente questo valore di k, ignorando l'intervallo.
+
+    L’algoritmo restituisce una struttura contenente i costi complessivi per giorno e sessione, 
+    insieme a dettagliamenti relativi alle assegnazioni e ai costi specifici, utile per il reporting e 
+    l’analisi comparativa delle configurazioni.
     """
 
     # Parametri di configurazione
