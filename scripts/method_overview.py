@@ -258,7 +258,7 @@ def method_overview(
                 from visualization import plot_clusters
 
 
-                plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, medoids_list, k=k, output_dir=RESULTS_DIR)
+                plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, k, medoids_list, output_dir=RESULTS_DIR)
 
                 print(f"[DEBUG] Clustering con k={k} completato, {len(clusters_dict)} cluster creati.")
 
