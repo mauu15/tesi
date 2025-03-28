@@ -581,9 +581,10 @@ def save_operator_scheduling(operators, baseline_operators, tau, variant_name, d
                 current_location = op.get("current_patient_id", "")
                 for i, (req, b_i) in enumerate(new_assignments):
                     req_id = req.get("id", "")
-                    alpha = req.get("Alpha", "")
-                    beta  = req.get("Beta", "")
-                    t_i   = req.get("t_i", "")
+                    project_id = req.get("project_id", "")
+                    alpha = req.get("min_time_begin", "")
+                    beta  = req.get("max_time_begin", "")
+                    t_i   = req.get("duration", "")
                     line_req = f"Richiesta (id: {req_id}, Alpha: {alpha}, Beta: {beta}, b_i: {b_i}, t_i: {t_i})\n"
                     f_out.write(line_req)
 
