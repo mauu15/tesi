@@ -165,10 +165,10 @@ def display_assignments_with_shifts(operators):
         })
     return pd.DataFrame(data)
 
-def display_session_statistics(operators, baseline_operators):
+def display_session_statistics(operators, baseline_operators, assigned_requests, unassigned_requests):
     """
     Calcola le statistiche globali dai dati dei singoli operatori:
-      - Assigned Requests: somma delle richieste assegnate (lunghezza di op["Lo"])
+      - Assigned Requests Session: somma delle richieste assegnate nella sessione (lunghezza di op["Lo"])
       - Unsatisfied Requests: differenza tra il totale delle richieste in ingresso e quelle assegnate
       - Total Waiting Time: somma totale del waiting time (in formato H:MM)
       - Total Road Time: somma dei tempi di spostamento
@@ -177,26 +177,19 @@ def display_session_statistics(operators, baseline_operators):
     """
     import pandas as pd
 
-    # Calcola il numero di richieste assegnate all'inizio e alla fine della sessione
-    assigned_requests_end = sum(len(op["Lo"]) for op in operators)
-    assigned_requests_start = sum(len(op["Lo"]) for op in baseline_operators)
-
-    # Calcola il delta delle richieste assegnate
-    assigned_requests_delta = assigned_requests_end - assigned_requests_start
-
-    assigned_requests = sum(len(op["Lo"]) for op in operators)
-    total_waiting = sum(op["do"] for op in operators)
-    total_road = sum(op["road_time"] for op in operators)
+    total_waiting = sum(op["do"] for op in operators) - sum(op["do"] for op in baseline_operators)
+    total_road = sum(op["road_time"] for op in operators) - sum(op["road_time"] for op in baseline_operators)
     avg_waiting = total_waiting / len(operators) if operators else 0
     avg_road = total_road / len(operators) if operators else 0
     overtime_minutes = sum(op["overtime_minutes"] for op in operators)
 
     
     # Calcola il totale delle ore lavorate
-    total_hours_worked = sum(op["wo"] for op in operators)
+    total_hours_worked = sum(op["wo"] for op in operators) - sum(op["wo"] for op in baseline_operators)
 
     stats = {
-        "Assigned Requests": assigned_requests_delta,
+        "Assigned Requests": len(assigned_requests),
+        "Unassigned Requests": len(unassigned_requests),
         "Total Waiting Time": parse_minutes_to_hours(total_waiting),
         "Total Road Time": parse_minutes_to_hours(total_road),
         "Average Waiting Time": parse_minutes_to_hours(avg_waiting),
@@ -207,7 +200,7 @@ def display_session_statistics(operators, baseline_operators):
     return pd.DataFrame([stats])
 
 
-def display_global_statistics(operators, total_cost, total_overtime_cost, total_routing_cost):
+def display_global_statistics(operators, total_cost, total_overtime_cost, total_routing_cost, requests):
     """
     Calcola le statistiche globali dai dati dei singoli operatori:
       - Assigned Requests: somma delle richieste assegnate (lunghezza di op["Lo"])
@@ -224,11 +217,22 @@ def display_global_statistics(operators, total_cost, total_overtime_cost, total_
     avg_waiting = total_waiting / len(operators) if operators else 0
     avg_road = total_road / len(operators) if operators else 0
 
-    # Calcola l'overtime totale
+    
     total_overtime = sum(max(0, op["wo"] - op["Ho"]) for op in operators)
-
-    # Calcola il totale delle ore lavorate
     total_hours_worked = sum(op["wo"] for op in operators)
+
+    # Calcolo del rapporto di occupazione
+    requests_map = { str(r["id"]): r["duration"] for r in requests }
+    total_service_time = sum(r["duration"] for r in requests)
+    assigned_service_time = 0
+    for op in operators:
+        for (req, _) in op.get("Lo", []):
+            req_id = str(req.get("id", ""))
+            if req_id in requests_map:
+                assigned_service_time += requests_map[req_id]
+    
+    occupation_ratio = (assigned_service_time / total_service_time * 100) if total_service_time > 0 else 0
+
 
     stats = {
         "Assigned Requests": assigned_requests,
@@ -240,7 +244,8 @@ def display_global_statistics(operators, total_cost, total_overtime_cost, total_
         "Routing Cost": round(total_routing_cost, 2),
         "Overtime Cost": round(total_overtime_cost, 2),
         "Total Overtime": parse_minutes_to_hours(total_overtime),
-        "Total Hours Worked": parse_minutes_to_hours(total_hours_worked)
+        "Total Hours Worked": parse_minutes_to_hours(total_hours_worked),
+        "Occupation Ratio": round(occupation_ratio, 2)
     }
     return pd.DataFrame([stats])
 
@@ -285,17 +290,17 @@ def save_statistics(variant_name, day, session, k, cost_ds, total_cost, global_s
     assignments_df.to_csv(assignments_csv, index=False)
 
 
-def save_global_statistics(operators, total_cost, total_overtime_cost, total_routing_cost, output_dir=RESULTS_DIR):
+def save_global_statistics(operators, variant_name, total_cost, total_overtime_cost, total_routing_cost, requests, output_dir=RESULTS_DIR):
     os.makedirs(output_dir, exist_ok=True)
-    global_stats_df = display_global_statistics(operators, total_cost, total_overtime_cost, total_routing_cost)
-    save_path = os.path.join(output_dir, "global_statistics.csv")
+    global_stats_df = display_global_statistics(operators, total_cost, total_overtime_cost, total_routing_cost, requests)
+    save_path = os.path.join(output_dir, f"variant_{variant_name}", f"global_statistics_variant{variant_name}.csv")
     global_stats_df.to_csv(save_path, index=False)
     print(f"Global statistics saved to {save_path}")
 
-def save_global_assignments(operators, output_dir=RESULTS_DIR):
+def save_global_assignments(operators, variant_name, output_dir=RESULTS_DIR):
     os.makedirs(output_dir, exist_ok=True)
     assignments_df = display_assignments_with_shifts(operators)
-    save_path = os.path.join(output_dir, "global_assignments.csv")
+    save_path = os.path.join(output_dir, f"variant_{variant_name}", f"global_assignments_variant{variant_name}.csv")
     assignments_df.to_csv(save_path, index=False)
     print(f"Global assignments saved to {save_path}")
 
@@ -614,3 +619,70 @@ def save_operator_scheduling(operators, baseline_operators, tau, variant_name, d
                         current_location = req.get("project_id", current_location)
                 f_out.write("\n\n")
         print(f"Scheduling salvato in: {file_path}")
+
+
+
+def save_histograms(variant_name):
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+
+    save_path_ov_hist = os.path.join(RESULTS_DIR, f"variant_{variant_name}", "histogram_ov.png")
+    save_path_dt_hist = os.path.join(RESULTS_DIR, f"variant_{variant_name}", "histogram_dt.png")
+
+
+
+    #convert in minutes a hour format HH:MM
+    def convert_to_minutes(time):
+        time = time.split(':')
+        return int(time[0])*60 + int(time[1])
+
+
+
+
+    csv_path = os.path.join(RESULTS_DIR, f"variant_{variant_name}", f"global_assignments_variant{variant_name}.csv")
+    dt = pd.read_csv(csv_path)
+
+
+    #Check if dt['Overtime'] is "No Overtime" replace with 0
+    dt['Overtime'] = dt['Overtime'].replace('No overtime', "00:00")
+
+
+    #apply the function to convert the time in minutes
+    dt['Overtime'] = dt['Overtime'].apply(convert_to_minutes)
+    dt['Waiting Time'] = dt['Waiting Time'].apply(convert_to_minutes)
+
+    over = dt['Overtime'].to_numpy()
+
+    waiting_time = dt['Waiting Time'].to_numpy()
+
+
+
+    cmap = plt.get_cmap('tab20')
+    colors = [cmap(i) for i in range(20)]
+
+    #Now plot two histograms: one for waiting time and one for overtime
+
+
+    n, bins, patches = plt.hist(waiting_time, bins=20, alpha=0.5, label='Waiting Time')
+
+    #We can change the color of the bars
+    for i in range(0, len(patches)):
+        patches[i].set_facecolor(colors[i%len(colors)])
+
+
+    plt.xlabel('Distribution of the total waiting time between operators (minutes)')
+
+    plt.savefig(save_path_dt_hist, dpi=300)
+    plt.close()
+
+    n, bins, patches = plt.hist(over, bins=20, alpha=0.5, label='Overtime')
+    #We can change the color of the bars
+    for i in range(0, len(patches)):
+        patches[i].set_facecolor(colors[i%len(colors)])
+
+
+    plt.xlabel('Distribution of the total overtime between operators (minutes)')
+    plt.savefig(save_path_ov_hist, dpi=300)
+    plt.close()
