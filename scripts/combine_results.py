@@ -88,7 +88,7 @@ def combine_results():
     
     if combined_results:
         combined_df = pd.DataFrame(combined_results)
-        output_file = os.path.join(RESULTS_DIR, "combined_results2.csv")
+        output_file = os.path.join(RESULTS_DIR, "combined_results.csv")
         combined_df.to_csv(output_file, index=False)
         print(f"File combinato salvato in {output_file}")
     else:
