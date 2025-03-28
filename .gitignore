@@ -4,5 +4,6 @@ csv/
 variants_results/
 scripts/m_o.py
 scripts/grs_variants_old.py
+scripts/clusters_plotter.py
 ElementOfStatisticalLearning.pdf
 results/
