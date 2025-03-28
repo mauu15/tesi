@@ -123,15 +123,21 @@ def method_overview(
             op["single_shift_requests"] = 0
             op["double_shift_requests"] = 0
 
+
+      
         for s in sessions:
             print(f"[DEBUG] Elaborazione sessione: {s} per giorno {d_i}")
+            
             update_operator_shift_counts(operators)
-            update_operator_priority(operators, epsilon)
+            update_operator_priority(operators, epsilon, d_i, s)
 
-
+            
             for op in operators:
-                print("SSRo: ", np.round(op["SSRo"], 2), " - DSRo: ", np.round(op["DSRo"], 2), "operatore: ", op["id"])
+                print("SSRo: ", np.round(op["SSRo"], 2), " - DSRo: ", np.round(op["DSRo"], 2), "operatore: ", op["id"], "priority: ", op["priority"])
 
+            # Ordiniamo O in base a op['priority']
+            O_sorted = sorted(operators, key=lambda x: x['priority'])
+            print([op["id"] for op in O_sorted])
             input()
 
             # Estrazione della subset di richieste Rds per il giorno d_i e la sessione s
@@ -187,8 +193,7 @@ def method_overview(
                 op["worked_after_11:30am_k"] = {}
                 op["overtime_minutes_k"] = {}
 
-
-           
+          
             print(f"[DEBUG] Inizio test per diversi valori di K (1..{Kmax}) per giorno {d_i} sessione {s}")
             
             
@@ -318,8 +323,7 @@ def method_overview(
                 # ------------------------------------------------------------
                 
                 
-                # Ordiniamo O in base a op['priority']
-                O_sorted = sorted(operators, key=lambda x: x['priority'])
+              
 
                 # Calcoliamo il numero di operatori necessari
                 import math
@@ -542,7 +546,11 @@ def method_overview(
     #save_operator_scheduling(operators, baseline_operators, tau, variant_name=variant)
 
     print("[METHOD OVERVIEW] - Completed.")
-    print(f"Parametri di configurazione: {variant}, lambda={epsilon}, down_time_true={down_time_true}, Kmax={Kmax}, multiplier={multiplier}, kfixed={kfixed}\n")
+    if kfixed is None:
+        print(f"Parametri di configurazione: {variant}, lambda={epsilon}, down_time_true={down_time_true}, Kmax={Kmax}, multiplier={multiplier}\n")
+    else:
+        print(f"Parametri di configurazione: {variant}, lambda={epsilon}, down_time_true={down_time_true}, kfixed={kfixed}, multiplier={multiplier}\n")
+        
     print(f"Total cost over all days/sessions: {total_cost}")
     print(f"Total overtime cost: {total_overtime_cost}")
     print(f"Total routing cost: {total_routing_cost}")
