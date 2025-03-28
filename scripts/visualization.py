@@ -17,7 +17,7 @@ kmedoids_dir = os.path.join(output_dir, "kmedoids")
 for folder in [output_dir, kmedoids_dir]:
     os.makedirs(folder, exist_ok=True)
 
-def plot_clusters(points, clusters, medoid_indices=None, filename=None, output_dir=None):
+def plot_clusters(points, clusters, k, medoid_indices=None, output_dir=None):
     """
     Plotta i punti in un grafico 2D colorati in base al cluster di appartenenza.
 
@@ -70,7 +70,7 @@ def plot_clusters(points, clusters, medoid_indices=None, filename=None, output_d
         Line2D([], [], marker='o', color=color, linestyle='', markersize=6)
         for color in colors
     )
-    # Dummy handle per i medoidi con marker X meno "pesante"
+
     medoid_handle = Line2D([], [], marker='X', color='red', linestyle='',
                            markersize=8, markeredgewidth=1)
     
@@ -85,10 +85,13 @@ def plot_clusters(points, clusters, medoid_indices=None, filename=None, output_d
     
     plt.show()
 
-    if filename is not None and output_dir is not None:
-        filepath = os.path.join(output_dir, filename)
-        plt.savefig(filepath, dpi=300)
-        print(f"Immagine salvata in: {filepath}")
+    if output_dir is None:
+        output_dir = os.path.join(output_dir, "clusters_visualization")
+    os.makedirs(output_dir, exist_ok=True)
+    filename = f"cluster_k{k}.png"
+    filepath = os.path.join(output_dir, filename)
     
-
+    plt.savefig(filepath, dpi=300)
+    print(f"Immagine salvata in: {filepath}")
+    
     plt.close()
