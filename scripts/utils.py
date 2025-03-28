@@ -329,3 +329,107 @@ def display_session_deltas(operators, baseline_operators):
         }
         session_deltas.append(delta)
     return pd.DataFrame(session_deltas)
+
+def time_str_to_minutes(time_str: str) -> int:
+    """
+    Converte una stringa che rappresenta un orario nel formato "H:MM" o "H.MM" in minuti.
+    Se la stringa è "No overtime", restituisce 0.
+    
+    Esempi:
+      "15:55" → 15*60 + 55 = 955 minuti
+      "15.55" → 955 minuti
+      "15"   → 15 ore → 900 minuti
+      
+    :param time_str: Stringa con il formato orario
+    :return: Il totale dei minuti
+    """
+    if time_str == "No overtime":
+        return 0
+
+    if ":" in time_str:
+        parts = time_str.split(":")
+    elif "." in time_str:
+        parts = time_str.split(".")
+    else:
+        try:
+            hours = int(time_str)
+            return hours * 60
+        except ValueError:
+            raise ValueError(f"Formato orario non riconosciuto: {time_str}")
+    
+    try:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+    except (IndexError, ValueError) as e:
+        raise ValueError(f"Formato orario non valido: {time_str}") from e
+
+    return hours * 60 + minutes
+
+def plot_time_distributions(df, variant_name, output_dir=RESULTS_DIR, show_plot=False):
+    """
+    Crea e salva 3 box plot separati:
+      1. 'Overtime_minutes'
+      2. 'Waiting Time_minutes'
+      3. 'Road Time_minutes'
+    Ogni grafico viene salvato nella cartella della variante con l'asse x etichettato rispettivamente:
+      "Overtime", "Waiting Time" e "Road Time"
+    Se show_plot è True, il grafico viene mostrato a schermo.
+    """
+    import matplotlib.pyplot as plt
+    import os
+
+    # Assicurati che le colonne *minutes siano presenti nel DataFrame;
+    # se non ci sono ma ci sono le colonne originali, le creiamo:
+    if 'Overtime_minutes' not in df.columns and 'Overtime' in df.columns:
+        df['Overtime_minutes'] = df['Overtime'].apply(time_str_to_minutes)
+    if 'Waiting Time_minutes' not in df.columns and 'Waiting Time' in df.columns:
+        df['Waiting Time_minutes'] = df['Waiting Time'].apply(time_str_to_minutes)
+    if 'Road Time_minutes' not in df.columns and 'Road Time' in df.columns:
+        df['Road Time_minutes'] = df['Road Time'].apply(time_str_to_minutes)
+
+    # Crea la cartella della variante se non esiste
+    variant_dir = os.path.join(output_dir, f"variant_{variant_name}")
+    os.makedirs(variant_dir, exist_ok=True)
+
+    # Lista di tuple (nome_colonna, nome_file, etichetta per l'asse x)
+    time_plots = [
+        ("Overtime_minutes",      f"distribution_boxplot_overtime_variant{variant_name}.png", "Overtime"),
+        ("Waiting Time_minutes",  f"distribution_boxplot_waiting_variant{variant_name}.png",  "Waiting Time"),
+        ("Road Time_minutes",     f"distribution_boxplot_road_variant{variant_name}.png",     "Road Time"),
+    ]
+
+    saved_paths = []
+
+    for col_name, filename, x_label in time_plots:
+        # Verifica che la colonna esista
+        if col_name in df.columns:
+            # Imposta una figura più stretta
+            plt.figure(figsize=(3,4))
+            ax = df[[col_name]].boxplot(return_type='axes')
+            # Imposta l'etichetta dell'asse x con il testo desiderato
+            ax.set_xticklabels([x_label])
+            # Imposta l'etichetta dell'asse y
+            ax.set_ylabel("Minuti")
+            plt.tight_layout()
+
+            save_path = os.path.join(variant_dir, filename)
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"{filename} salvato in {save_path}")
+            
+            if show_plot:
+                plt.show()
+            else:
+                plt.close()
+
+            saved_paths.append(save_path)
+        else:
+            print(f"ATTENZIONE: la colonna '{col_name}' non è presente nel DataFrame.")
+
+    return saved_paths
+
+
+def calculate_and_save_stats(variant_name):
+    print(f"Calcolo e salvataggio delle statistiche per la variante {variant_name}...")
+
+def save_operator_scheduling(operators, baseline_operators, tau, variant_name, day, session):
+    print(f"Salvataggio dello scheduling degli operatori per la variante {variant_name}...")
