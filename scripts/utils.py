@@ -59,7 +59,7 @@ def update_operator_shift_counts(operators):
                     op['single_shift_requests'] += 1
             
 
-def update_operator_priority(operators, epsilon):
+def update_operator_priority(operators, epsilon, day, session):
     """
     Aggiorna SSRo, DSRo e priority in base ai campi single_shift_requests e double_shift_requests.
     """
@@ -70,9 +70,25 @@ def update_operator_priority(operators, epsilon):
             op['priority'] = 0
             continue
         
-        op['SSRo'] = (op['single_shift_requests'] * 60) / op["Ho"]
-        op['DSRo'] = (op.get('double_shift_requests', 0) * 60) / op["Ho"]
-        op['priority'] = epsilon * op['SSRo'] + (1 - epsilon) * op['DSRo']  
+        op['SSRo'] = (op['single_shift_requests'] * 60 * 5) / op["Ho"]
+        op['DSRo'] = (op.get('double_shift_requests', 0) * 60 *7.5) / op["Ho"]
+
+        if session == "m":
+            ssro_guess = ((op['single_shift_requests'] + 1) * 60 * 5) / op["Ho"]
+            op['priority'] = epsilon * ssro_guess + (1 - epsilon) * op['DSRo']  
+        else:
+            #Check if op has worked in the morning
+            req_o = [req  for (req, _) in op['Lo'] if req['day'] == day]
+            o_worked_morning = any(parse_time_to_minutes(req['min_time_begin']) < 12*60 + 30 for req in req_o)
+            if o_worked_morning:
+                dsro_guess = ((op['double_shift_requests'] + 1) * 60 * 7.5) / op["Ho"]
+                ssro_guess = ((op['single_shift_requests'] - 1) * 60 * 5) / op["Ho"]
+                op['priority'] = epsilon * ssro_guess + (1 - epsilon) * dsro_guess 
+            else:
+                ssro_guess = ((op['single_shift_requests'] + 1) * 60 * 5) / op["Ho"]
+                op['priority'] = epsilon * ssro_guess + (1 - epsilon) * op['DSRo']
+
+    
 
 
 ##############################################################
