@@ -534,4 +534,71 @@ def calculate_and_save_stats(variant_name, requests):
 
 
 def save_operator_scheduling(operators, baseline_operators, tau, variant_name, day, session):
-    print(f"Salvataggio dello scheduling degli operatori per la variante {variant_name}...")
+    """
+    Salva le assegnazioni dei singoli operatori in file di testo separati per il giorno e la sessione indicati.
+    
+    Il file di ciascun operatore verrà salvato in:
+      RESULT_DIR/variant_<variant_name>/scheduling/day_<day>/session_<session>/scheduling_S<session>_Op<operator_id>.txt
+      
+    Per ogni assegnazione "nuova" (quelle in op["Lo"] non presenti in baseline_operators["Lo"]),
+    viene scritto:
+    
+        Operatore <id>: <Name> <Surname>
+        
+        Richiesta (id: <id>, Alpha: <Alpha>, Beta: <Beta>, b_i: <b_i>, t_i: <t_i>)
+        ↓ Tau: <tau_value> - Waiting_time: <waiting_time>
+        (per tutte tranne l’ultima assegnazione)
+    
+    Dove:
+      - Ogni assegnazione è rappresentata da una tupla (req, b_i) in op["Lo"].
+      - I campi Alpha, Beta e t_i devono essere presenti nel dizionario della richiesta.
+      - Tau viene letto dal dizionario tau, utilizzando come chiave la coppia
+          (operator["current_patient_id"], request["project_id"])
+      - Waiting_time si calcola come: next_b_i - (b_i + t_i)
+    """
+    import os
+    from utils import RESULTS_DIR
+
+    base_sched_dir = os.path.join(RESULTS_DIR, f"variant_{variant_name}", "scheduling", f"day_{day}", f"session_{session}")
+    os.makedirs(base_sched_dir, exist_ok=True)
+
+    for op, base_op in zip(operators, baseline_operators):
+        base_ids = {assignment[0]["id"] for assignment in base_op.get("Lo", [])}
+        new_assignments = [assignment for assignment in op.get("Lo", []) if assignment[0]["id"] not in base_ids]
+
+        # Costruisce il  file per l'operatore: es. scheduling_Sm_Op0.txt
+        filename = f"scheduling_S{session}_Op{op['id']}.txt"
+        file_path = os.path.join(base_sched_dir, filename)
+
+        with open(file_path, "w") as f_out:
+            header = f"Operatore ID: {op['id']}\n\n"
+            f_out.write(header)
+
+            if not new_assignments:
+                f_out.write("Nessuna richiesta assegnata in questa sessione\n")
+            else:
+
+                current_location = op.get("current_patient_id", "")
+                for i, (req, b_i) in enumerate(new_assignments):
+                    req_id = req.get("id", "")
+                    alpha = req.get("Alpha", "")
+                    beta  = req.get("Beta", "")
+                    t_i   = req.get("t_i", "")
+                    line_req = f"Richiesta (id: {req_id}, Alpha: {alpha}, Beta: {beta}, b_i: {b_i}, t_i: {t_i})\n"
+                    f_out.write(line_req)
+
+                    if i < len(new_assignments) - 1:
+                        next_req, next_b_i = new_assignments[i+1]
+                        try:
+                            finish_time = int(b_i) + int(t_i)
+                            waiting_time = int(next_b_i) - finish_time
+                        except Exception:
+                            waiting_time = ""
+                        # Usa la coppia (current_location, req["project_id"]) per recuperare tau_value
+                        tau_value = tau.get((current_location, req.get("project_id", "")), "")
+                        line_info = f"↓ Tau: {tau_value} - Waiting_time: {waiting_time}\n"
+                        f_out.write(line_info)
+                        # Aggiorna la current_location al progetto della richiesta attuale
+                        current_location = req.get("project_id", current_location)
+                f_out.write("\n\n")
+        print(f"Scheduling salvato in: {file_path}")
