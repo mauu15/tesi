@@ -9,6 +9,7 @@ from MOST import MOST
 from visualization import plot_clusters
 from utils import *
 from copy import deepcopy
+#from scheduling_mapper import create_hhc_map_session, create_map_from_txt_schedules
 
 
 import matplotlib.pyplot as plt
@@ -18,7 +19,12 @@ def method_overview(
     requests,
     operators,
     patients,
-    tau
+    tau,
+    variant,
+    epsilon: float, 
+    down_time_true: bool,
+    Kmax: int,
+    multiplier: float
 ):
     """
     Implementazione dell'Algoritmo 6: METHOD OVERVIEW
@@ -38,14 +44,16 @@ def method_overview(
              inclusi costi, assegnazioni e qualunque output desideri.
     """
 
-    # Parametri di default
+    # Parametri di configurazione
     morning_start: int = 420  # 7:00
     morning_end:   int = 750  # 12:30 with 30 min ov
     afternoon_start: int = 960   # 16:00
     afternoon_end:   int = 1320  # 22:00 with 30 min ov
     
-    epsilon: float = 0.4     # lambda per il peso tra SSRo e DSRo
-    Kmax: int = 21        # Numero max di cluster da testare (1..Kmax)
+    # epsilon: float = 0.4     # lambda per il peso tra SSRo e DSRo
+    # Kmax: int = 37      # Numero max di cluster da testare (1..Kmax)
+    # down_time_true=True # True se si vuole considerare il tempo di attesa tra una richiesta e l'altra
+
 
 
     # Inizializzazione di eventuali strutture di costo globale
@@ -125,6 +133,7 @@ def method_overview(
 
             
             points = np.array([[p['lat'], p['lon']] for p in Pds])
+
             
             # plot_clusters(
             #     points,
@@ -163,8 +172,10 @@ def method_overview(
            
             print(f"[DEBUG] Inizio test per diversi valori di K (1..{Kmax}) per giorno {d_i} sessione {s}")
             
-
+            
+            unassigned_requests_k = {}
             for k in range(1, Kmax):
+                unassigned_requests_k[k] = False
                 cost_k = 0
                 routing_cost = 0
                 overtime_cost = 0
@@ -186,12 +197,14 @@ def method_overview(
                     op["current_patient_id_k"][k] = op["current_patient_id"]
                     op["wo_k"][k] = op["wo"]
                     op["road_time_k"][k] = 0
-                    op["Lo_k"][k] = []
+                    op["Lo_k"][k] = deepcopy(op["Lo"])
                     op["do_k"][k] = 0
                     op["overtime_minutes_k"][k] = 0
                     
-                     #Check operator params corecteness
+                    #Check operator params corecteness
                     #print("Operator ", op["id"], " - global_assignments: ", op["global_assignments"], " - Lo: ", op["Lo"], " - Lok: ", op["Lo_k"][k], " h_o: ", op["ho"], " hok: ", op["ho_k"][k], " e_o: ", op["eo"], " eok: ", op["eo_k"][k], " dok: ", op["do_k"][k], " w_o: ", op["wo"], " wok: ", op["wo_k"][k]) 
+
+
 
 
                 P_indices = list(range(len(Pds))) # indici dei pazienti
@@ -231,7 +244,7 @@ def method_overview(
                 from visualization import plot_clusters
 
 
-                #plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, medoids_list)
+                plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, medoids_list)
 
                 print(f"[DEBUG] Clustering con k={k} completato, {len(clusters_dict)} cluster creati.")
 
@@ -275,6 +288,8 @@ def method_overview(
                         'mu_c': mu_c
                     })
 
+                   
+
                 # µk = ∑c∈C µc
                 mu_k = total_mu
 
@@ -288,11 +303,10 @@ def method_overview(
 
                 # Calcoliamo il numero di operatori necessari
                 import math
-                num_ops_needed = int(mu_k)
+                num_ops_needed = int(np.ceil(mu_k * multiplier))
                
 
 
-                num_ops_needed = min(len(operators), math.ceil(num_ops_needed*1.25))
 
                 print("------------------------------------------------------------")
                 print(f"Operatori assegnati per configurazione {k} con 25%", num_ops_needed)
@@ -303,7 +317,6 @@ def method_overview(
                     print(f"[DEBUG] Attenzione: numero di operatori necessari ({num_ops_needed}) maggiore del totale ({len(operators)})")
                     print(f"[DEBUG] Salto la configurazione con k = {k}")
                     cost_k = float('inf')
-                    input()
                     continue
 
 
@@ -320,7 +333,7 @@ def method_overview(
                     #take the first mu_c operators
 
                     c_idx = info['cluster_idx'] # cluster index in clusters dict
-                    needed_for_c = int(np.round(info['mu_c']*1.25, 0))
+                    needed_for_c = int(np.round(info['mu_c']*multiplier, 0))
 
                     # 1) Ottiengo l'ID del medoid corrispondente a questo cluster
                     medoid_id = medoids_list[c_idx]
@@ -359,12 +372,12 @@ def method_overview(
                     print("Solving GRS for cluster ", c_idx)
                     print(""*5)
 
-                    feasible, rc, ovc, doc, n_used_ops = grs_variants(
+                    rc, ovc, doc, n_used_ops = grs_variants(
                         operators=assigned_ops,               # operatori per il cluster
                         requests=info['Rdsc'],                # richieste di quel cluster
                         patients=clusters[c_idx],             # lista dei pazienti del cluster
                         shift_end=session_bounds[s][1],       # orario di fine turno in base alla sessione, [1] serve a selezionare la fine
-                        down_time_true=True,                 # o True, a seconda della logica
+                        down_time_true=down_time_true,                 # o True, a seconda della logica
                         tau=tau, k=k                            # matrice delle distanze
                     )
                     
@@ -374,15 +387,42 @@ def method_overview(
                     if len(n_used_ops) > 0:
                         print("Operatori non utilizzati: ", n_used_ops)
                    
-                    if not feasible:
-                        cost_k = float('inf')
-                        break
-                    else:
-                        cost_k += (rc + ovc)
-                        routing_cost += rc
-                        overtime_cost += ovc
-                        d_ok += doc
                     
+                    # print("Lo_k per cluster ", c_idx, ": ")
+                    # for op in assigned_ops:
+                    #     for r in op["Lo_k"][k]:
+                    #         print(r[0]["id"])
+
+                    
+                    
+
+                    cost_k += (rc + ovc)
+                    routing_cost += rc
+                    overtime_cost += ovc
+                    d_ok += doc
+                
+
+                #Controlla se tuttte le richieste sono state assegnate altrimenti le penalizza
+
+                assigned_requests = []
+                for op in operators:
+                    for r in op["Lo_k"][k]:
+                        assigned_requests.append(r[0])
+
+                unassigned_requests = [r for r in Rds if r["id"] not in [r_["id"] for r_ in assigned_requests]]
+
+                print(len(unassigned_requests), " richieste non assegnate nella configurazione ", k)
+                print(len(assigned_requests), " richieste assegnate nella configurazione ", k)
+
+                if len(unassigned_requests) > 0:
+                    print("Richieste non assegnate: ", unassigned_requests, "config k = ", k)
+                    unassigned_requests_k[k] = True
+
+                for r in unassigned_requests:
+                    # penalizza il costo
+
+                    cost_k += r["duration"] * 0.29
+
 
                 # Fine loop su c => otteniamo cost_k come la somma
                 # Salviamo cost_k se è il migliore
@@ -395,19 +435,32 @@ def method_overview(
                         'cluster_ops': cluster_ops,
                         'clusters_info': cluster_info
                     }
-
+                   
                     overtime_cost_session = overtime_cost
                     routing_cost_session = routing_cost
                     print(f"[DEBUG] Nuovo best_cost trovato: {best_cost_for_k} con k = {best_k} totale down time: {d_ok} totale operatori: ", mu_k)
+                  
+                        
+                    
+                    
 
             
+
             if best_assignment is not None:
+
                 print(f"[DEBUG] Consolidamento dello stato per giorno {d_i} sessione {s} con best_k = {best_k}")
-                # input()
+                #Verifica se in tutte le configurazioni di k ci sono richieste non assegnate
+                #Può preferire pagare il costo di non prendere una richiesta a volte
+                if all(unassigned_requests_k.values()):
+                    print(f"[DEBUG] Tutte le configurazioni di k hanno richieste non assegnate per giorno {d_i} sessione {s}.")
+
+                    
+                    input()
+
                 for c_idx, assigned_ops in best_assignment['cluster_ops'].items():
                     # salvo i campi finali di interesse per ogni operatore
                     for op in assigned_ops:
-                        op["Lo"] = op["Lo"] + op["Lo_k"][best_k]
+                        op["Lo"] = op["Lo_k"][best_k]
                         op["do"] += op["do_k"][best_k]
                         op["wo"] = op["wo_k"][best_k]
                         if best_k in op["worked_after_11:30am_k"].keys():
@@ -424,7 +477,11 @@ def method_overview(
             print(""*5)
 
 
-            # input()
+
+            
+            #save_operator_scheduling(operators, baseline_operators, tau,  variant_name=variant, day=d_i, session=s)
+
+            
              # Genera DataFrame per le statistiche globali e per le assegnazioni
 
             # print("[DEBUG] Stato degli operatori prima del report:")
@@ -436,6 +493,41 @@ def method_overview(
 
             
 
+            # create_hhc_map_session(
+            #     operators=operators,
+            #     patients=patients,
+            #     tau=tau,
+            #     day=d_i,
+            #     session=s,
+            #     session_bounds=session_bounds,
+            #     variant_name="TradeOff",
+            #     output_dir=RESULTS_DIR,
+            # )
+
+            requests_map = {}
+            for r in requests:
+                req_id = r["id"]
+                requests_map[req_id] = r
+
+            # patient_id -> (lat, lon)
+            patients_map = {}
+            for p in patients:
+                pid = p["id"]
+                patients_map[pid] = (p["lat"], p["lon"])
+
+            # create_map_from_txt_schedules(
+            #     operators=operators,
+            #     requests_map=requests_map,
+            #     patients_map=patients_map,
+            #     tau=tau,
+            #     day=d_i,
+            #     session=s,
+            #     variant_name=variant,
+            #     output_dir="results"
+            # )
+
+            # input()
+
             total_cost = sum(cost_ds.values())
             total_overtime_cost += overtime_cost_session
             total_routing_cost += routing_cost_session
@@ -443,15 +535,32 @@ def method_overview(
             
             session_stats_df = display_session_statistics(operators, baseline_operators)
             session_deltas_df = display_session_deltas(operators, baseline_operators)
-            save_statistics("TradeOff", d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=session_stats_df, assignments_df=session_deltas_df)
+            #save_statistics(variant, d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=session_stats_df, assignments_df=session_deltas_df)
             all_assignments[(d_i, s)] = best_assignment
+            
 
 
     
-    # create_directed_graph_of_schedule(...)
+    
+    #save_operator_scheduling(operators, baseline_operators, tau, variant_name=variant)
 
     print("[METHOD OVERVIEW] - Completed.")
     print(f"Total cost over all days/sessions: {total_cost}")
+    print(f"Total overtime cost: {total_overtime_cost}")
+    print(f"Total routing cost: {total_routing_cost}")
+    print(f"Total overtime cost sum operators: {sum(max(op['wo'] - op['Ho'], 0) for op in operators)*0.29}")
+
+
+    unserved_requests = [r for r in requests if r["id"] not in [rq[0]["id"] for op in operators for rq in op["Lo"]]]
+    print(f"Unserved requests: {unserved_requests}")
+
+    total_time_served = sum(sum(rq[0]["duration"] for rq in op["Lo"]) for op in operators)
+    total_time = sum(rq["duration"] for rq in requests)
+
+    print(f"Total time served ratio: {total_time_served*100 / total_time:.2f}")
+
+
+
 
     # Ritorna i risultati finali
     return {
@@ -463,27 +572,210 @@ def method_overview(
     }
 
 
-def main():
-    
-    tau = {}
-    
-    import os
+import os
+import sys
+import itertools
+import string
+import pandas as pd
+
+def run_all_configurations():
+    """
+    Esegue tutte le configurazioni possibili, salvando i risultati in cartelle separate.
+    """
     current_dir = os.path.dirname(os.path.realpath(__file__))
     json_path = os.path.join(current_dir, "../mapping/distance_matrix_pane_rose.json")
-
     with open(json_path, "r") as f:
         tau = eval(f.read())
     
-    # print("tau =", tau, type(tau))
+    # PARAMETRI DI CONFIGURAZIONE FISSI
+    Kmax = 36  # Numero max di cluster da testare (1..Kmax-1)
     
-    results = method_overview(requests, operators, patients, tau)
+    # Valori da testare per le 3 variabili
+    epsilons = [0.5, 0.4, 0.6]         # 3 valori per epsilon
+    down_time_trues = [True, False]     # 2 valori per down_time_true
+    multipliers = [1.25, 1]            # 2 valori per multiplier
+    
+    configurazioni = list(itertools.product(epsilons, down_time_trues, multipliers))
+    variant_letters = list(string.ascii_uppercase[:len(configurazioni)])  # ['A', 'B', ..., 'L']
+    
+    # Esegue il metodo per tutte le configurazioni e salva i risultati
+    for letter, (epsilon, down_time_true, multiplier) in zip(variant_letters, configurazioni):
+        variant_name = letter  # Usa la lettera come nome variante
+        print(f"Processing variant {variant_name}: epsilon={epsilon}, down_time_true={down_time_true}, multiplier={multiplier}")
+        
+        results = method_overview(requests, operators, patients, tau,
+                                  variant=variant_name,
+                                  epsilon=epsilon,
+                                  down_time_true=down_time_true,
+                                  Kmax=Kmax,
+                                  multiplier=multiplier)
+        print(results)
+
+        # Salva i parametri usati in un file nella cartella della variante
+        variant_dir = os.path.join(RESULTS_DIR, f"variant_{variant_name}")
+        os.makedirs(variant_dir, exist_ok=True)
+        with open(os.path.join(variant_dir, "parameters.txt"), "w") as f:
+            f.write(f"epsilon: {epsilon}\n")
+            f.write(f"down_time_true: {down_time_true}\n")
+            f.write(f"multiplier: {multiplier}\n")
+    
+        # Salva i risultati globali e le assegnazioni
+        save_global_statistics(operators,
+                               variant_name=variant_name,
+                               total_cost=results['total_cost'],
+                               total_overtime_cost=results['total_overtime_cost'],
+                               total_routing_cost=results['total_routing_cost'],
+                               requests=requests)
+    
+        save_global_assignments(operators, variant_name=variant_name)
+    
+        # Calcola e salva le statistiche per ciascun operatore
+        calculate_and_save_stats(variant_name)
+    
+        # Legge il file degli assignments e genera i boxplot
+        assignments_file = os.path.join(variant_dir, f"global_assignments_{variant_name}.csv")
+        df_assign = pd.read_csv(assignments_file)
+        plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
+
+def run_test_configuration():
+    """
+    Esegue una configurazione di test per verificare il funzionamento del metodo.
+    """
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    json_path = os.path.join(current_dir, "../mapping/distance_matrix_pane_rose.json")
+    with open(json_path, "r") as f:
+        tau = eval(f.read())
+    
+    Kmax = 6  # Numero max di cluster
+
+    # Configurazione di test
+    epsilon = 0.4
+    down_time_true = True
+    multiplier = 1.25
+    variant_name = "Test"  # Nome della variante per il test
+
+    print(f"Processing test variant {variant_name}: epsilon={epsilon}, down_time_true={down_time_true}, multiplier={multiplier}")
+    
+    results = method_overview(requests, operators, patients, tau,
+                              variant=variant_name,
+                              epsilon=epsilon,
+                              down_time_true=down_time_true,
+                              Kmax=Kmax,
+                              multiplier=multiplier)
     print(results)
 
-    save_global_statistics(operators, total_cost=results['total_cost'], total_overtime_cost=results['total_overtime_cost'], total_routing_cost=results['total_routing_cost'])
-    save_global_assignments(operators)
+    variant_dir = os.path.join(RESULTS_DIR, f"variant_{variant_name}")
+    os.makedirs(variant_dir, exist_ok=True)
+    with open(os.path.join(variant_dir, "parameters.txt"), "w") as f:
+        f.write(f"epsilon: {epsilon}\n")
+        f.write(f"down_time_true: {down_time_true}\n")
+        f.write(f"multiplier: {multiplier}\n")
 
+    save_global_statistics(operators,
+                           variant_name=variant_name,
+                           total_cost=results['total_cost'],
+                           total_overtime_cost=results['total_overtime_cost'],
+                           total_routing_cost=results['total_routing_cost'],
+                           requests=requests)
+    
+    save_global_assignments(operators, variant_name=variant_name)
+    
+    calculate_and_save_stats(variant_name)
+    
+    assignments_file = os.path.join(variant_dir, f"global_assignments_{variant_name}.csv")
+    df_assign = pd.read_csv(assignments_file)
+    plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
 
-if __name__ == "__main__":
+def run_specific_configuration(variant_letter):
+    """
+    Esegue la configurazione corrispondente alla lettera passata (es. "A", "B", ecc.)
+    A = (0.5, True, 1.25)
+    B = (0.5, True, 1)
+    C = (0.5, False, 1.25)
+    D = (0.5, False, 1)
+    E = (0.4, True, 1.25)
+    F = (0.4, True, 1)
+    G = (0.4, False, 1.25)
+    H = (0.4, False, 1)
+    I = (0.6, True, 1.25)
+    J = (0.6, True, 1)
+    K = (0.6, False, 1.25)
+    L = (0.6, False, 1)
+    """
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    json_path = os.path.join(current_dir, "../mapping/distance_matrix_pane_rose.json")
+    with open(json_path, "r") as f:
+        tau = eval(f.read())
+    
+    Kmax = 36  # Numero max di cluster
+
+    # Definisci i valori da testare
+    epsilons = [0.5, 0.4, 0.6]
+    down_time_trues = [True, False]
+    multipliers = [1.25, 1] #Con 1.35 variante A fa 100%
+
+    configurazioni = list(itertools.product(epsilons, down_time_trues, multipliers))
+    variant_letters = list(string.ascii_uppercase[:len(configurazioni)])
+
+    if variant_letter.upper() not in variant_letters:
+        print(f"Errore: Variante {variant_letter} non valida. Scegli una delle seguenti: {', '.join(variant_letters)}")
+        return
+
+    index = variant_letters.index(variant_letter.upper())
+    epsilon, down_time_true, multiplier = configurazioni[index]
+    variant_name = variant_letter.upper()
+
+    print(f"Processing variant {variant_name}: epsilon={epsilon}, down_time_true={down_time_true}, multiplier={multiplier}")
+    
+    results = method_overview(requests, operators, patients, tau,
+                              variant=variant_name,
+                              epsilon=epsilon,
+                              down_time_true=down_time_true,
+                              Kmax=Kmax,
+                              multiplier=multiplier)
+    print(results)
+
+    variant_dir = os.path.join(RESULTS_DIR, f"variant_{variant_name}")
+    os.makedirs(variant_dir, exist_ok=True)
+    with open(os.path.join(variant_dir, "parameters.txt"), "w") as f:
+        f.write(f"epsilon: {epsilon}\n")
+        f.write(f"down_time_true: {down_time_true}\n")
+        f.write(f"multiplier: {multiplier}\n")
+    
+    save_global_statistics(operators,
+                           variant_name=variant_name,
+                           total_cost=results['total_cost'],
+                           total_overtime_cost=results['total_overtime_cost'],
+                           total_routing_cost=results['total_routing_cost'],
+                           requests=requests)
+    
+    save_global_assignments(operators, variant_name=variant_name)
+    
+    calculate_and_save_stats(variant_name)
+    
+    assignments_file = os.path.join(variant_dir, f"global_assignments_{variant_name}.csv")
+    df_assign = pd.read_csv(assignments_file)
+    plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
+
+def main():
+    # Controlla i parametri da linea di comando:
+    # - Se viene passato "test", esegue la configurazione di test.
+    # - Se viene passato una lettera, esegue quella specifica configurazione.
+    # - Se non vengono passati argomenti o viene passato "all", esegue tutte le configurazioni.
+    if len(sys.argv) > 1:
+        arg = sys.argv[1].lower()
+        if arg == "test":
+            run_test_configuration()
+        elif len(arg) == 1 and arg.upper() in string.ascii_uppercase:
+            run_specific_configuration(arg)
+        elif arg == "all":
+            run_all_configurations()
+        else:
+            print("Argomento non riconosciuto. Usa 'test' per il test, una lettera (A, B, ...) per una specifica configurazione, oppure 'all' per eseguire tutte le configurazioni.")
+    else:
+        run_all_configurations()
+
+if __name__ == '__main__':
     main()
 
 
