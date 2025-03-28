@@ -9,6 +9,7 @@ from MOST import MOST
 from visualization import plot_clusters
 from utils import *
 from copy import deepcopy
+from combine_results import combine_results
 #from scheduling_mapper import create_hhc_map_session, create_map_from_txt_schedules
 
 
@@ -597,8 +598,8 @@ def run_all_configurations():
         df_assign = pd.read_csv(assignments_file)
         plot_time_distributions(df_assign, variant_name, output_dir=RESULTS_DIR, show_plot=False)
 
-        from combine_results import combine_results
-        combine_results(variant_name=variant_name)
+        
+        combine_results()
 
 def run_test_configuration():
     """
