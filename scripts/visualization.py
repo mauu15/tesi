@@ -85,8 +85,10 @@ def plot_clusters(points, clusters, k, medoid_indices=None, output_dir=None):
     
     plt.show()
 
+    from utils import RESULTS_DIR
     if output_dir is None:
-        output_dir = os.path.join(output_dir, "clusters_visualization")
+        output_dir = RESULTS_DIR
+    output_dir = os.path.join(output_dir, "clusters_visualization")
     os.makedirs(output_dir, exist_ok=True)
     filename = f"cluster_k{k}.png"
     filepath = os.path.join(output_dir, filename)
