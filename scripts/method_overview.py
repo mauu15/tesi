@@ -138,7 +138,7 @@ def method_overview(
             # Ordiniamo O in base a op['priority']
             O_sorted = sorted(operators, key=lambda x: x['priority'])
             print([op["id"] for op in O_sorted])
-            input()
+            #input()
 
             # Estrazione della subset di richieste Rds per il giorno d_i e la sessione s
             day_requests = [r for r in requests if r["day"] == d_i]
@@ -269,7 +269,7 @@ def method_overview(
                 from visualization import plot_clusters
 
 
-                #plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, k, variant, medoids_list, output_dir=RESULTS_DIR)
+                plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, k, variant, d_i, s, medoids_list, output_dir=RESULTS_DIR)
 
                 print(f"[DEBUG] Clustering con k={k} completato, {len(clusters_dict)} cluster creati.")
 
@@ -474,7 +474,8 @@ def method_overview(
                     print(f"[DEBUG] Tutte le configurazioni di k hanno richieste non assegnate per giorno {d_i} sessione {s}.")
 
                     
-                    input()
+                    #input()
+
 
                 for c_idx, assigned_ops in best_assignment['cluster_ops'].items():
                     # salvo i campi finali di interesse per ogni operatore
@@ -498,8 +499,9 @@ def method_overview(
 
 
             
-            #save_operator_scheduling(operators, baseline_operators, tau, variant_name=variant, day=d_i, session=s, patients=patients)
+            save_operator_scheduling(operators, baseline_operators, tau, variant_name=variant, day=d_i, session=s, patients=patients)
 
+        
             
             # Genera DataFrame per le statistiche globali e per le assegnazioni
 
@@ -536,7 +538,7 @@ def method_overview(
             
             session_stats_df = display_session_statistics(operators, baseline_operators, assigned_requests, unassigned_requests)
             session_deltas_df = display_session_deltas(operators, baseline_operators)
-            #save_statistics(variant, d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=session_stats_df, assignments_df=session_deltas_df)
+            save_statistics(variant, d_i, s, best_k, cost_ds, total_cost=total_cost, global_stats_df=session_stats_df, assignments_df=session_deltas_df)
             all_assignments[(d_i, s)] = best_assignment
             
 
@@ -544,6 +546,7 @@ def method_overview(
     
     # scheduling settimanale, da reimplementare
     #save_operator_scheduling(operators, baseline_operators, tau, variant_name=variant)
+    aggregate_weekly_schedule(operators, variant_name=variant)
 
     print("[METHOD OVERVIEW] - Completed.")
     if kfixed is None:
@@ -663,13 +666,13 @@ def run_test_configuration():
         tau = eval(f.read())
     
     Kmax = 3  # Numero max di cluster
-    kfixed = 1  # Se specificato, usa questo valore fisso per k
+    kfixed = None  # Se specificato, usa questo valore fisso per k
 
     # Configurazione di test
     epsilon = 0.5
     down_time_true = True
     multiplier = 1.5
-    variant_name = "A_fixed1"  # Nome della variante per il test
+    variant_name = "Test2"  # Nome della variante per il test
 
     print(f"Processing test variant {variant_name}: epsilon={epsilon}, down_time_true={down_time_true}, multiplier={multiplier}")
     
