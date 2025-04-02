@@ -557,85 +557,306 @@ def calculate_and_save_stats(variant_name, requests):
 def save_operator_scheduling(operators, baseline_operators, tau, variant_name, day, session, patients):
     """
     Salva le assegnazioni dei singoli operatori in file di testo separati per il giorno e la sessione indicati.
-    
+    Corregge la logica di stampa di Tau e Waiting Time per associarli correttamente al viaggio *verso* la richiesta.
+
     Il file di ciascun operatore verrà salvato in:
       RESULT_DIR/variant_<variant_name>/scheduling/day_<day>/session_<session>/scheduling_S<session>_Op<operator_id>.txt
-      
+
     Per ogni assegnazione "nuova" (quelle in op["Lo"] non presenti in baseline_operators["Lo"]),
     viene scritto:
-    
-        Operatore <id>: <Name> <Surname>
-        
-        Richiesta (id: <id>, Alpha: <Alpha>, Beta: <Beta>, b_i: <b_i>, t_i: <t_i>)
+
+        (per tutte tranne la prima assegnazione)
         ↓ Tau: <tau_value> - Waiting_time: <waiting_time>
-        (per tutte tranne l’ultima assegnazione)
-    
+
+        Richiesta (id: <id>, project_id: <project_id>, Alpha: <Alpha>, Beta: <Beta>, b_i: <b_i>, t_i: <t_i>)
+        Coordinate paziente: (<lat>, <lon>)
+
     Dove:
       - Ogni assegnazione è rappresentata da una tupla (req, b_i) in op["Lo"].
       - I campi Alpha, Beta e t_i devono essere presenti nel dizionario della richiesta.
       - Tau viene letto dal dizionario tau, utilizzando come chiave la coppia
-          (operator["current_patient_id"], request["project_id"])
-      - Waiting_time si calcola come: next_b_i - (b_i + t_i)
+          (previous_location_id, current_request_project_id)
+      - Waiting_time si calcola come: current_b_i - (previous_b_i + previous_t_i)
     """
     import os
-    from utils import RESULTS_DIR
+    # from utils import RESULTS_DIR # Se definito in utils
 
     base_sched_dir = os.path.join(RESULTS_DIR, f"variant_{variant_name}", "scheduling", f"day_{day}", f"session_{session}")
     os.makedirs(base_sched_dir, exist_ok=True)
 
     for op, base_op in zip(operators, baseline_operators):
-        base_ids = {assignment[0]["id"] for assignment in base_op.get("Lo", [])}
-        new_assignments = [assignment for assignment in op.get("Lo", []) if assignment[0]["id"] not in base_ids]
+        # Ottieni gli ID delle richieste nel baseline per un confronto rapido
+        base_ids = {assignment[0].get("id") for assignment in base_op.get("Lo", []) if assignment and assignment[0]}
+        
+        # Filtra le nuove assegnazioni, assicurandosi che siano valide
+        new_assignments = []
+        for assignment in op.get("Lo", []):
+            if assignment and assignment[0] and assignment[0].get("id") not in base_ids:
+                 # Assicurati che ci siano anche b_i (secondo elemento della tupla)
+                if len(assignment) > 1:
+                    new_assignments.append(assignment)
+                else:
+                    print(f"Attenzione: Assegnazione malformata per Op {op['id']}: {assignment}")
 
-        # Costruisce il  file per l'operatore: es. scheduling_Sm_Op0.txt
+
+        # Costruisce il nome del file per l'operatore: es. scheduling_Sm_Op0.txt
         filename = f"scheduling_S{session}_Op{op['id']}.txt"
         file_path = os.path.join(base_sched_dir, filename)
 
         with open(file_path, "w") as f_out:
-            header = f"Operatore ID: {op['id']}, Coordinate Operatore: {op['lat']}, {op['lon']}\n\n"
+            op_id = op.get('id', 'N/A')
+            op_lat = op.get('lat', 'N/A')
+            op_lon = op.get('lon', 'N/A')
+            header = f"Operatore ID: {op_id}, Coordinate Operatore: {op_lat}, {op_lon}\n\n"
             f_out.write(header)
 
             if not new_assignments:
-                f_out.write("Nessuna richiesta assegnata in questa sessione\n")
+                f_out.write("Nessuna nuova richiesta assegnata in questa sessione\n")
             else:
+                # La posizione di partenza è quella attuale dell'operatore all'inizio della sessione
+                # Se non c'è 'current_patient_id', potresti dover usare un ID speciale per la base/deposito
+                # o gestire diversamente il primo tau. Qui assumiamo che sia presente o sia una stringa vuota/None
+                # gestita correttamente nella matrice tau.
+                # Usiamo l'ID dell'operatore o un ID di deposito se non c'è current_patient_id?
+                # Decidiamo di usare l'ID del progetto dell'ultima richiesta servita PRIMA di questa sessione,
+                # che dovrebbe essere in op['current_patient_id']. Se non c'è, significa che parte da "casa"
+                # o che è la primissima assegnazione in assoluto. La matrice tau dovrebbe gestire la chiave
+                # (id_partenza_operatore, id_prima_richiesta).
+                previous_location_id = op.get("current_patient_id") # Potrebbe essere None o un ID
+                # Se non c'è una locazione precedente, potremmo usare un ID speciale tipo 'depot' o l'ID operatore
+                if previous_location_id is None:
+                    # Questo dipende da come è costruita la tua matrice tau
+                    # Potrebbe essere l'ID dell'operatore o un ID fisso per il deposito/partenza
+                     previous_location_id = f"op_{op_id}_start" # Esempio, ADATTA ALLA TUA MATRICE TAU
+                     # O più semplicemente, potresti voler stampare Tau=0 per il primo spostamento
+                     # senza cercarlo nella matrice.
 
-                current_location = op.get("current_patient_id", "")
+                previous_req_data = None
+                previous_b_i = None
+                previous_t_i = None
+
                 for i, (req, b_i) in enumerate(new_assignments):
-                    req_id = req.get("id", "")
-                    project_id = req.get("project_id", "")
-                    
+                    req_id = req.get("id", "N/A")
+                    project_id = req.get("project_id", "N/A") # Questo è l'ID della destinazione attuale
+
+                    # Calcola Tau per arrivare a QUESTA richiesta dalla posizione PRECEDENTE
+                    # Assicurati che gli ID usati (previous_location_id, project_id) siano chiavi valide per tau
+                    tau_key = (previous_location_id, project_id)
+                    tau_value = tau.get(tau_key, "N/A") # Metti un valore di default se la chiave non esiste
+
+                    # Calcola Waiting Time (solo se non è la prima richiesta)
+                    waiting_time = "N/A" # Default
+                    if i > 0 and previous_b_i is not None and previous_t_i is not None:
+                        try:
+                            # Assicurati che b_i, previous_b_i, previous_t_i siano numerici
+                            current_b_i_int = int(b_i)
+                            prev_finish_time = int(previous_b_i) + int(previous_t_i)
+                            waiting_time = current_b_i_int - prev_finish_time
+                            if waiting_time < 0:
+                                # Questo potrebbe indicare un problema di scheduling o nel calcolo tau
+                                print(f"Attenzione: Waiting time negativo ({waiting_time}) per Op {op_id}, Req {req_id} dopo Req {previous_req_data.get('id', 'N/A')}")
+                                waiting_time = f"ERR({waiting_time})" # Segnala l'errore nell'output
+                        except (ValueError, TypeError) as e:
+                            print(f"Errore nel calcolo del waiting time per Op {op_id}, Req {req_id}: {e}")
+                            waiting_time = "Calc Error"
+
+                    # Stampa la riga Tau/Waiting Time *PRIMA* della richiesta (tranne per la prima)
+                    # Modifica: Stampiamo Tau per tutti, anche il primo. Se Tau=0 per il primo va bene.
+                    # Stampiamo Waiting Time solo dal secondo in poi.
+                    if i == 0:
+                         # Per la prima richiesta, potresti voler mostrare solo Tau o un messaggio specifico
+                         # Dipende se il tau iniziale è significativo (es. da deposito a primo paziente)
+                         f_out.write(f"↓ Viaggio iniziale Tau: {tau_value}\n")
+                    else:
+                         f_out.write(f"↓ Tau: {tau_value} - Waiting_time: {waiting_time}\n")
+
+
+                    # Ora stampa i dettagli della richiesta corrente
                     # Ricerca del paziente per project_id per ottenere le coordinate
-                    patient = next((p for p in patients if p["id"] == project_id), None)
+                    patient = next((p for p in patients if p.get("id") == project_id), None)
                     if patient is not None:
-                        lat = patient.get("lat", "")
-                        lon = patient.get("lon", "")
+                        lat = patient.get("lat", "N/A")
+                        lon = patient.get("lon", "N/A")
                         coord_str = f"Coordinate paziente: ({lat}, {lon})"
                     else:
-                        coord_str = "Coordinate: (non trovate)"
+                        coord_str = f"Coordinate paziente: (non trovate per id {project_id})"
 
-                    alpha = req.get("min_time_begin", "")
-                    beta  = req.get("max_time_begin", "")
-                    t_i   = req.get("duration", "")
-                    line_req = f"Richiesta (id: {req_id}, project_id: {project_id}, Alpha: {parse_time_to_minutes(alpha)}, Beta: {parse_time_to_minutes(beta)}, b_i: {b_i}, t_i: {t_i})\n"
+                    alpha_str = req.get("min_time_begin", "")
+                    beta_str  = req.get("max_time_begin", "")
+                    t_i_val   = req.get("duration", "N/A")
+                    
+                    # Usa la tua funzione parse_time_to_minutes se necessario
+                    alpha_min = parse_time_to_minutes(alpha_str)
+                    beta_min  = parse_time_to_minutes(beta_str)
+
+                    line_req = f"Richiesta (id: {req_id}, project_id: {project_id}, Alpha: {alpha_min}, Beta: {beta_min}, b_i: {b_i}, t_i: {t_i_val})\n"
                     f_out.write(line_req)
-                    f_out.write(coord_str + "\n")
+                    f_out.write(coord_str + "\n\n") # Aggiunto newline per separare meglio
 
-                    if i < len(new_assignments) - 1:
-                        next_req, next_b_i = new_assignments[i+1]
-                        try:
-                            finish_time = int(b_i) + int(t_i)
-                            waiting_time = int(next_b_i) - finish_time
-                        except Exception:
-                            waiting_time = ""
-                        # Usa la coppia (current_location, req["project_id"]) per recuperare tau_value
-                        tau_value = tau.get((current_location, req.get("project_id", "")), "")
-                        line_info = f"↓ Tau: {tau_value} - Waiting_time: {waiting_time}\n"
-                        f_out.write(line_info)
-                        # Aggiorna la current_location al progetto della richiesta attuale
-                        current_location = req.get("project_id", current_location)
-                f_out.write("\n\n")
-        print(f"Scheduling salvato in: {file_path}")
+                    # Aggiorna le variabili per la prossima iterazione
+                    previous_location_id = project_id # La destinazione attuale diventa la partenza per il prossimo
+                    previous_req_data = req
+                    previous_b_i = b_i
+                    previous_t_i = t_i_val # Usa il valore t_i recuperato
 
+            # Non c'è più bisogno di scrivere la riga Tau/WT alla fine del loop
+
+            # Aggiungi un separatore alla fine del file per chiarezza
+            f_out.write("-- Fine scheduling sessione --\n")
+
+        print(f"Scheduling corretto salvato in: {file_path}")
+
+
+import re
+def aggregate_weekly_schedule(operators, variant_name):
+    """
+    Aggrega i file di scheduling per operatore in un unico file settimanale,
+    rilevando automaticamente i giorni (0-6) presenti e usando le sessioni 'm' e 'a'.
+    Stampa ID e coordinate dell'operatore solo una volta all'inizio del file settimanale.
+
+    Legge i file da:
+      RESULT_DIR/variant_<variant_name>/scheduling/day_<day>/session_<session>/scheduling_S<session>_Op<operator_id>.txt
+
+    Crea i file settimanali in:
+      RESULT_DIR/variant_<variant_name>/scheduling/week/weekly_schedule_Op<operator_id>.txt
+
+    Args:
+        operators (list): Una lista di dizionari, ogni dizionario rappresenta un operatore
+                          e deve contenere almeno le chiavi 'id', 'lat', 'lon'.
+        variant_name (str): Il nome della variante usata per trovare le directory di input/output.
+        RESULTS_DIR (str): Il percorso della directory base dei risultati.
+    """
+    # Mappe per rendere l'output più leggibile (giorni 0-6)
+    day_map = {
+        0: "LUNEDI", 1: "MARTEDI", 2: "MERCOLEDI", 3: "GIOVEDI", 4: "VENERDI",
+        5: "SABATO", 6: "DOMENICA"
+    }
+    # Sessioni fisse: m = morning, a = afternoon
+    sessions_to_process = ['m', 'a']
+    session_map = {
+        'm': "Mattina", 'a': "Pomeriggio"
+    }
+
+    base_scheduling_dir = os.path.join(RESULTS_DIR, f"variant_{variant_name}", "scheduling")
+    weekly_output_dir = os.path.join(base_scheduling_dir, "week")
+
+    # --- Rilevamento automatico dei giorni (0-6) ---
+    discovered_days = []
+    if not os.path.isdir(base_scheduling_dir):
+        print(f"Errore: La directory di scheduling base non esiste: {base_scheduling_dir}")
+        return
+
+    print(f"Ricerca giorni in: {base_scheduling_dir}")
+    try:
+        for entry in os.listdir(base_scheduling_dir):
+            if entry.startswith("day_") and os.path.isdir(os.path.join(base_scheduling_dir, entry)):
+                match = re.match(r"day_(\d+)", entry)
+                if match:
+                    try:
+                        day_num = int(match.group(1))
+                        # Assicurati che il giorno sia nel range atteso (opzionale, ma buono)
+                        if 0 <= day_num <= 6:
+                           discovered_days.append(day_num)
+                        else:
+                           print(f"Attenzione: Ignorata directory giorno fuori range (0-6): {entry}")
+                    except ValueError:
+                        print(f"Attenzione: Ignorata directory con formato giorno non valido: {entry}")
+    except FileNotFoundError:
+         print(f"Errore: Impossibile accedere alla directory di scheduling base: {base_scheduling_dir}")
+         return
+    except Exception as e:
+         print(f"Errore durante la scansione dei giorni in {base_scheduling_dir}: {e}")
+         return
+
+
+    if not discovered_days:
+        print(f"Nessuna directory 'day_*' (con giorni 0-6) trovata in {base_scheduling_dir}. Impossibile aggregare.")
+        return
+
+    discovered_days.sort()
+    print(f"Giorni rilevati da processare: {discovered_days}")
+    # -----------------------------------------
+
+    os.makedirs(weekly_output_dir, exist_ok=True)
+    print(f"Directory per output settimanale: {weekly_output_dir}")
+
+    if not operators:
+        print("Attenzione: La lista operatori è vuota. Nessun file settimanale verrà generato.")
+        return
+
+    for op in operators:
+        op_id = op.get('id')
+        op_lat = op.get('lat', 'N/A') # Prendi lat dall'operatore
+        op_lon = op.get('lon', 'N/A') # Prendi lon dall'operatore
+
+        if op_id is None:
+            print("Attenzione: Trovato operatore senza ID, verrà saltato.")
+            continue
+
+        weekly_filename = f"weekly_schedule_Op{op_id}.txt"
+        weekly_filepath = os.path.join(weekly_output_dir, weekly_filename)
+
+        print(f"Generazione file settimanale per Operatore {op_id} in {weekly_filepath}...")
+
+        try:
+            with open(weekly_filepath, "w", encoding='utf-8') as f_weekly:
+                # Scrivi l'intestazione principale UNA SOLA VOLTA con ID e Coordinate
+                f_weekly.write(f"=== Pianificazione Settimanale Operatore ID: {op_id} ===\n")
+                f_weekly.write(f"=== Coordinate Operatore: {op_lat}, {op_lon} ===\n")
+                f_weekly.write(f"=== Variante: {variant_name} ===\n\n")
+
+                found_any_schedule_for_op = False
+                for day in discovered_days:
+                    day_name = day_map.get(day, f"Giorno {day}") # Usa la mappa 0-6
+
+                    for session in sessions_to_process:
+                        session_name = session_map.get(session, f"Sessione {session}")
+
+                        session_dir = os.path.join(base_scheduling_dir, f"day_{day}", f"session_{session}")
+                        individual_filename = f"scheduling_S{session}_Op{op_id}.txt"
+                        individual_filepath = os.path.join(session_dir, individual_filename)
+
+                        # Scrivi l'intestazione della sezione giorno/sessione
+                        f_weekly.write(f"--- {day_name} - Sessione {session_name} ---\n")
+
+                        if os.path.exists(individual_filepath):
+                            try:
+                                with open(individual_filepath, "r", encoding='utf-8') as f_individual:
+                                    full_content = f_individual.read()
+                                    # Trova la fine dell'header originale (prima occorrenza di \n\n)
+                                    header_end_pos = full_content.find('\n\n')
+
+                                    if header_end_pos != -1:
+                                        # Estrai e scrivi solo il contenuto DOPO l'header originale
+                                        schedule_content = full_content[header_end_pos + 2:]
+                                        f_weekly.write(schedule_content)
+                                    else:
+                                        # Fallback se non trova \n\n (improbabile con lo script precedente)
+                                        # Scrive tutto ma avvisa di possibile duplicato header
+                                        print(f"Attenzione: Separatore header '\\n\\n' non trovato in {individual_filepath}. Potrebbe esserci header duplicato nel file settimanale.")
+                                        f_weekly.write(full_content)
+
+                                    # Assicura uno spazio dopo il contenuto della sessione
+                                    if not schedule_content.endswith('\n\n'):
+                                         if not schedule_content.endswith('\n'):
+                                              f_weekly.write("\n\n")
+                                         else:
+                                              f_weekly.write("\n")
+                                    found_any_schedule_for_op = True
+
+                            except Exception as e:
+                                print(f"Errore durante la lettura del file {individual_filepath}: {e}")
+                                f_weekly.write(f"[Errore nella lettura del file: {individual_filename}]\n\n")
+                        else:
+                            f_weekly.write("(Nessuna assegnazione registrata per questa sessione)\n\n")
+
+                if not found_any_schedule_for_op:
+                     f_weekly.write("\n=== Nessuna assegnazione trovata per l'intera settimana ===\n")
+
+        except Exception as e:
+            print(f"Errore durante la scrittura del file settimanale {weekly_filepath}: {e}")
+
+    print("\nAggregazione settimanale finale completata.")
 
 
 def save_histograms(variant_name):
