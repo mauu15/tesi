@@ -17,7 +17,7 @@ kmedoids_dir = os.path.join(output_dir, "kmedoids")
 for folder in [output_dir, kmedoids_dir]:
     os.makedirs(folder, exist_ok=True)
 
-def plot_clusters(points, clusters, k, variant_name, medoid_indices=None, output_dir=None):
+def plot_clusters(points, clusters, k, variant_name, d_i, s, medoid_indices=None, output_dir=None):
     """
     Plotta i punti in un grafico 2D colorati in base al cluster di appartenenza.
 
@@ -88,7 +88,7 @@ def plot_clusters(points, clusters, k, variant_name, medoid_indices=None, output
     from utils import RESULTS_DIR
     if output_dir is None:
         output_dir = RESULTS_DIR
-    output_dir = os.path.join(output_dir, f"variant_{variant_name}", "clusters_visualization")
+    output_dir = os.path.join(output_dir, f"variant_{variant_name}", f"day_{d_i}", f"session_{s}" ,"clusters_visualization")
     os.makedirs(output_dir, exist_ok=True)
     filename = f"cluster_k{k}.png"
     filepath = os.path.join(output_dir, filename)
