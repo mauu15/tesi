@@ -10,6 +10,7 @@ from visualization import plot_clusters
 from utils import *
 from copy import deepcopy
 from combine_results import combine_results
+from visualization_map import plot_clusters_with_map
 #from scheduling_mapper import create_hhc_map_session, create_map_from_txt_schedules
 
 
@@ -269,8 +270,13 @@ def method_overview(
                 from visualization import plot_clusters
 
 
-                plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, k, variant, d_i, s, medoids_list, output_dir=RESULTS_DIR)
-
+                
+                # plot_clusters(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, k, variant, d_i, s, medoids_list, output_dir=RESULTS_DIR)
+                
+                if k <= 6:
+                    plot_clusters_with_map(np.array([[p['lat'], p['lon']] for p in Pds]), clusters_dict, k, variant, d_i, s, medoids_list)
+                # input("Press Enter to continue...")
+                
                 print(f"[DEBUG] Clustering con k={k} completato, {len(clusters_dict)} cluster creati.")
 
                 clusters = {}
@@ -573,7 +579,7 @@ def method_overview(
 
 
 
-
+    input(f"Terminato il giorno {d_i} e la sessione {s}, premi invio per continuare...")
     # Ritorna i risultati finali
     return {
         'cost_ds': cost_ds,
@@ -582,6 +588,7 @@ def method_overview(
         'total_routing_cost': total_routing_cost,
         'details': None 
     }
+    
 
 
 import os
