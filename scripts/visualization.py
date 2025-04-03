@@ -59,9 +59,9 @@ def plot_clusters(points, clusters, k, variant_name, d_i, s, medoid_indices=None
         plt.scatter(medoid_points[:, 0], medoid_points[:, 1],
                     color='red', marker='X', s=90, linewidths=0.8)
     
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.title("Clustering")
+    # plt.xlabel("X")
+    # plt.ylabel("Y")
+    plt.title(f"Clustering con k={k} (variant: {variant_name}, day: {d_i}, session: {s})")
     
     # Genera i dummy handle per comporre la voce "Pazienti"
     unique_clusters = sorted(clusters.keys())
